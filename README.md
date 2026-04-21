@@ -1,0 +1,2 @@
+# powerfulwords
+narritives on prices
