@@ -1,0 +1,3 @@
+file_path,source_id,source_bucket,source_name,publisher_or_channel,published_at,commodity,subtheme,region,language,access_mode,cost_level,rights_note,quality_tier,rumor_flag,verification_status,title
+data/raw/official_reports/2026-04-19_opec_supply_note.txt,opec_momr,official_reports,OPEC,OPEC,2026-04-19,crude_oil,opec_policy,global,en,website_pdf,free,Public document,1,false,officially_confirmed,OPEC supply note
+data/raw/market_chatter/2026-04-19_redsea_tanker_note.txt,telegram_forwarded,social_private_manual,Forwarded Telegram,Telegram,2026-04-19,crude_oil,shipping_disruption,middle_east,en,manual_upload,proprietary,Forwarded note only,5,true,unverified,Red Sea tanker chatter

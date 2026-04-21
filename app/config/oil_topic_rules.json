@@ -1,0 +1,257 @@
+{
+  "topic_rules": {
+    "supply_disruption": {
+      "keywords": [
+        "outage",
+        "disruption",
+        "halt",
+        "attack",
+        "delay",
+        "shutdown",
+        "中断",
+        "停产",
+        "袭击",
+        "延误",
+        "关闭"
+      ],
+      "direction": "bullish"
+    },
+    "demand_reacceleration": {
+      "keywords": [
+        "strong demand",
+        "rebound in demand",
+        "jet fuel demand",
+        "需求回升",
+        "需求反弹"
+      ],
+      "direction": "bullish"
+    },
+    "inventory_draw": {
+      "keywords": [
+        "inventory draw",
+        "stock draw",
+        "库存下降",
+        "去库存"
+      ],
+      "direction": "bullish"
+    },
+    "inventory_build": {
+      "keywords": [
+        "inventory build",
+        "stock build",
+        "库存增加",
+        "累库"
+      ],
+      "direction": "bearish"
+    },
+    "opec_policy": {
+      "keywords": [
+        "opec",
+        "opec+",
+        "quota",
+        "compliance",
+        "production cut",
+        "减产",
+        "增产",
+        "配额"
+      ],
+      "direction": "mixed"
+    },
+    "sanctions_risk": {
+      "keywords": [
+        "sanction",
+        "ofac",
+        "price cap",
+        "制裁",
+        "禁运",
+        "限价"
+      ],
+      "direction": "bullish"
+    },
+    "weather_risk": {
+      "keywords": [
+        "hurricane",
+        "storm",
+        "cyclone",
+        "飓风",
+        "风暴"
+      ],
+      "direction": "bullish"
+    },
+    "shipping_disruption": {
+      "keywords": [
+        "shipping disruption",
+        "tanker",
+        "strait",
+        "red sea",
+        "航运中断",
+        "油轮",
+        "海峡",
+        "红海"
+      ],
+      "direction": "bullish"
+    },
+    "refining_margin_shift": {
+      "keywords": [
+        "refining margin",
+        "crack spread",
+        "refinery run",
+        "炼厂利润",
+        "裂解价差",
+        "炼厂开工"
+      ],
+      "direction": "mixed"
+    },
+    "macro_growth_fear": {
+      "keywords": [
+        "recession",
+        "growth slowdown",
+        "经济衰退",
+        "增长放缓"
+      ],
+      "direction": "bearish"
+    },
+    "usd_rates_pressure": {
+      "keywords": [
+        "higher rates",
+        "strong dollar",
+        "fed hike",
+        "美元走强",
+        "加息"
+      ],
+      "direction": "bearish"
+    },
+    "geopolitical_risk": {
+      "keywords": [
+        "war",
+        "conflict",
+        "geopolitical tension",
+        "冲突",
+        "战争",
+        "地缘风险"
+      ],
+      "direction": "bullish"
+    },
+    "production_restart": {
+      "keywords": [
+        "restart",
+        "resume output",
+        "复产",
+        "恢复生产",
+        "恢复出口"
+      ],
+      "direction": "bearish"
+    }
+  },
+  "bullish_words": [
+    "tight",
+    "tightening",
+    "supportive",
+    "bullish",
+    "stronger",
+    "上涨",
+    "偏多",
+    "紧张",
+    "支撑"
+  ],
+  "bearish_words": [
+    "oversupply",
+    "weaker",
+    "bearish",
+    "slowing",
+    "下跌",
+    "偏空",
+    "过剩",
+    "走弱"
+  ],
+  "rumor_words": [
+    "rumor",
+    "unconfirmed",
+    "reportedly",
+    "market talk",
+    "hearing",
+    "传言",
+    "未证实",
+    "据说",
+    "听说"
+  ],
+  "official_confirm_words": [
+    "official",
+    "confirmed",
+    "eia",
+    "opec",
+    "ofac",
+    "官方",
+    "确认",
+    "证实"
+  ],
+  "swing_words": [
+    "days",
+    "weeks",
+    "coming weeks",
+    "short term",
+    "未来几周",
+    "短期"
+  ],
+  "medium_term_words": [
+    "months",
+    "quarter",
+    "year",
+    "medium term",
+    "未来数月",
+    "季度",
+    "年内"
+  ],
+  "regions": {
+    "middle_east": [
+      "middle east",
+      "gulf",
+      "saudi",
+      "iran",
+      "iraq",
+      "uae",
+      "中东",
+      "海湾",
+      "沙特",
+      "伊朗",
+      "伊拉克"
+    ],
+    "black_sea": [
+      "black sea",
+      "russia",
+      "ukraine",
+      "黑海",
+      "俄罗斯",
+      "乌克兰"
+    ],
+    "us_gulf": [
+      "gulf coast",
+      "mexico gulf",
+      "墨西哥湾",
+      "美国湾岸"
+    ],
+    "global": [
+      "global",
+      "worldwide",
+      "全球"
+    ]
+  },
+  "entities": [
+    "OPEC",
+    "OPEC+",
+    "EIA",
+    "OFAC",
+    "Saudi Arabia",
+    "Russia",
+    "Iran",
+    "Iraq",
+    "UAE",
+    "WTI",
+    "Brent",
+    "沙特",
+    "俄罗斯",
+    "伊朗",
+    "伊拉克",
+    "阿联酋"
+  ]
+}

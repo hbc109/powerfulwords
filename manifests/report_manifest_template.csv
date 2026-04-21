@@ -1,0 +1,2 @@
+file_path,source_id,source_bucket,source_name,publisher_or_channel,published_at,commodity,subtheme,region,language,access_mode,cost_level,rights_note,quality_tier,rumor_flag,verification_status,title
+data/raw/analyst_reports/sample_report.txt,sellside_manual_upload,sellside_private,Sample Broker,Sample Broker,2026-04-17,crude_oil,opec_policy,global,en,manual_upload,proprietary,Internal use only,2,false,unverified,Oil balance update

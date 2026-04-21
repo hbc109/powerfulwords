@@ -1,0 +1,37 @@
+version: 1
+project: oil_narrative_engine
+commodity: crude_oil
+
+source_buckets:
+  - official_data
+  - official_reports
+  - institutional_public
+  - sellside_private
+  - authoritative_news
+  - social_open
+  - social_private_manual
+
+sources:
+  - source_id: opec_momr
+    source_name: OPEC
+    source_bucket: official_reports
+    access_mode: website_pdf
+    cost_level: free
+    credibility_tier: 1
+    notes: Official reports and commentary.
+
+  - source_id: telegram_forwarded
+    source_name: Forwarded Telegram
+    source_bucket: social_private_manual
+    access_mode: manual_upload
+    cost_level: proprietary
+    credibility_tier: 5
+    notes: Rumor-prone forwarded market chatter.
+
+  - source_id: sellside_manual_upload
+    source_name: Sellside Reports Manual Upload
+    source_bucket: sellside_private
+    access_mode: manual_upload
+    cost_level: proprietary
+    credibility_tier: 2
+    notes: Only ingest documents you are authorized to use.

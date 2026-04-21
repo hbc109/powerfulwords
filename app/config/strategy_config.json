@@ -1,0 +1,15 @@
+{
+  "symbol": "WTI",
+  "commodity": "crude_oil",
+  "entry_threshold_long": 0.2,
+  "entry_threshold_short": -0.2,
+  "strong_entry_threshold_long": 0.6,
+  "strong_entry_threshold_short": -0.6,
+  "base_position": 1.0,
+  "strong_position": 2.0,
+  "max_abs_position": 2.0,
+  "hold_if_same_sign": true,
+  "flat_if_neutral": true,
+  "one_way_cost_bps": 5.0,
+  "initial_capital": 100000.0
+}

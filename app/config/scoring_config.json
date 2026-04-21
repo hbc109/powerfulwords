@@ -1,0 +1,32 @@
+{
+  "bucket_weights": {
+    "official_data": 1.0,
+    "official_reports": 0.95,
+    "institutional_public": 0.85,
+    "sellside_private": 0.82,
+    "authoritative_news": 0.72,
+    "social_open": 0.45,
+    "social_private_manual": 0.3
+  },
+  "verification_multipliers": {
+    "officially_confirmed": 1.0,
+    "partially_confirmed": 0.85,
+    "unverified": 0.6,
+    "refuted": 0.2
+  },
+  "horizon_multipliers": {
+    "intraday": 0.85,
+    "swing": 1.0,
+    "medium_term": 1.1
+  },
+  "direction_sign": {
+    "bullish": 1.0,
+    "bearish": -1.0,
+    "mixed": 0.25,
+    "neutral": 0.0
+  },
+  "rumor_penalty": 0.18,
+  "crowding_topic_threshold": 4,
+  "crowding_penalty_per_extra_event": 0.04,
+  "official_confirmation_bonus": 0.12
+}

@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Runtime data
+data/oil_narrative.db
+data/processed/events/*
+data/processed/signals/*
+data/processed/research/*
+data/processed/backtests/*
+data/processed/clean_text/*
+data/processed/metadata/*
+data/processed/chunks/*
+
+# Keep directories
+!data/processed/events/.gitkeep
+!data/processed/signals/.gitkeep
+!data/processed/research/.gitkeep
+!data/processed/backtests/.gitkeep
+!data/processed/clean_text/.gitkeep
+!data/processed/metadata/.gitkeep
+!data/processed/chunks/.gitkeep
+
+# Environment
+.env
+.env.local
