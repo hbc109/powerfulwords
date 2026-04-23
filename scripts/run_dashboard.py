@@ -1,11 +1,4 @@
 from pathlib import Path
-import sys
-
-BASE_DIR = Path(__file__).resolve().parents[1]
-if str(BASE_DIR) not in sys.path:
-    sys.path.insert(0, str(BASE_DIR))
-
-from pathlib import Path
 import subprocess
 import sys
 
@@ -21,7 +14,6 @@ def main():
         str(APP_PATH),
         "--server.headless=true",
         "--browser.gatherUsageStats=false",
-        "--server.address=127.0.0.1",
     ]
     subprocess.run(cmd, check=True)
 
