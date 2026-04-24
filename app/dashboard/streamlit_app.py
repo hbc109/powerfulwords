@@ -220,8 +220,8 @@ c5.metric("Average Event Confidence", avg_conf)
 
 st.info(f"Main Sources: {main_sources}")
 
-tab_recs, tab1, tab_trends, tab2, tab3, tab_multi = st.tabs(
-    ["Recommendations", "Overview", "Trends", "Research", "Backtest", "Multi-book"]
+tab_recs, tab_upload, tab1, tab_trends, tab2, tab3, tab_multi = st.tabs(
+    ["Recommendations", "Upload", "Overview", "Trends", "Research", "Backtest", "Multi-book"]
 )
 
 with tab_recs:
@@ -260,6 +260,134 @@ with tab_recs:
                                     f"`{v['if_theme']}` {v['is']} {v['value']} "
                                     f"(score {v['theme_score']:+.3f}) blocks {v['blocks']}"
                                 )
+
+# --- Upload tab: drag-and-drop reports straight into the inbox ---
+with tab_upload:
+    import re
+    import subprocess
+    from datetime import date as _date
+
+    st.subheader("Upload an analyst report or any narrative document")
+    st.caption(
+        "Drop a PDF / DOCX / TXT here, pick its source and date. The file is "
+        "saved into data/inbox/<bucket>/<source_id>/<date>_<title>.<ext>, and "
+        "you can run the ingest pipeline immediately afterwards."
+    )
+
+    INBOX_ROOT = BASE_DIR / "data" / "inbox"
+
+    @st.cache_data(ttl=60)
+    def _load_source_choices():
+        """Returns [(label_for_dropdown, source_bucket, source_id, source_name)]."""
+        conn = sqlite3.connect(DB_PATH)
+        rows = conn.execute(
+            "SELECT source_bucket, source_id, source_name FROM sources ORDER BY source_bucket, source_id"
+        ).fetchall()
+        conn.close()
+        return [
+            (f"{bucket}  /  {sid}  ({name})", bucket, sid, name)
+            for bucket, sid, name in rows
+        ]
+
+    sources = _load_source_choices()
+    if not sources:
+        st.warning("No sources in DB. Run `python scripts/init_sources.py` first.")
+    else:
+        labels = [s[0] for s in sources]
+        # Default to the sell-side bucket when present (most common for analyst reports).
+        default_idx = next(
+            (i for i, s in enumerate(sources) if s[2] == "sellside_manual_upload"), 0
+        )
+
+        col_a, col_b = st.columns([2, 1])
+        with col_a:
+            picked = st.selectbox("Source", labels, index=default_idx)
+            picked_idx = labels.index(picked)
+            _, sel_bucket, sel_source_id, sel_source_name = sources[picked_idx]
+        with col_b:
+            picked_date = st.date_input("Report date", value=_date.today())
+
+        title_hint = st.text_input(
+            "Short title / slug (optional — used in the filename)",
+            placeholder="e.g. gs_oil_balance_apr",
+        )
+
+        uploaded = st.file_uploader(
+            "Drop file here",
+            type=["pdf", "docx", "txt"],
+            accept_multiple_files=True,
+        )
+
+        run_pipeline = st.checkbox(
+            "Run ingest + extract + score immediately after saving",
+            value=True,
+        )
+
+        save_clicked = st.button("Save to inbox", type="primary", disabled=not uploaded)
+
+        def _slugify(s: str) -> str:
+            s = (s or "").strip().lower().replace(" ", "_")
+            return re.sub(r"[^a-z0-9_]+", "", s)[:60].strip("_") or "report"
+
+        if save_clicked and uploaded:
+            target_folder = INBOX_ROOT / sel_bucket / sel_source_id
+            target_folder.mkdir(parents=True, exist_ok=True)
+            saved = []
+            for i, up in enumerate(uploaded):
+                stem_hint = title_hint if title_hint else (up.name.rsplit(".", 1)[0] if "." in up.name else up.name)
+                # If multiple files share the title, suffix to keep unique
+                if len(uploaded) > 1 and not title_hint:
+                    stem_hint = up.name.rsplit(".", 1)[0] if "." in up.name else up.name
+                slug = _slugify(stem_hint)
+                ext = up.name.rsplit(".", 1)[-1].lower() if "." in up.name else "txt"
+                fname = f"{picked_date.isoformat()}_{slug}.{ext}"
+                # Avoid silently overwriting an existing file with the same name
+                target_path = target_folder / fname
+                n = 1
+                while target_path.exists():
+                    n += 1
+                    target_path = target_folder / f"{picked_date.isoformat()}_{slug}_{n}.{ext}"
+                target_path.write_bytes(up.getvalue())
+                saved.append(target_path)
+                st.success(f"Saved {target_path.relative_to(BASE_DIR)}")
+
+            if run_pipeline and saved:
+                with st.spinner("Running ingest → extract → score …"):
+                    cmds = [
+                        [sys.executable, "scripts/ingest_folder.py"],
+                        [sys.executable, "scripts/extract_narratives.py", "--mode", "auto"],
+                        [sys.executable, "scripts/score_narratives.py"],
+                    ]
+                    for cmd in cmds:
+                        result = subprocess.run(
+                            cmd, cwd=str(BASE_DIR), capture_output=True, text=True
+                        )
+                        if result.returncode != 0:
+                            st.error(f"`{cmd[1]}` failed:\n{result.stderr.strip() or result.stdout.strip()}")
+                            break
+                        last = (result.stdout.strip().splitlines() or [""])[-1]
+                        st.info(f"`{Path(cmd[1]).name}`: {last[:200]}")
+                    else:
+                        st.success("Pipeline complete. Switch tabs to see updated scores.")
+
+    st.divider()
+    st.markdown(
+        "**Filename convention.** Files are saved as "
+        "`<YYYY-MM-DD>_<slug>.<ext>`. The date prefix tells the ingester "
+        "what `published_at` to record, which drives the daily score date."
+    )
+
+    # Quick listing of what's already in this source folder so the user
+    # can see what's been uploaded without leaving the dashboard.
+    if sources:
+        target_folder = INBOX_ROOT / sel_bucket / sel_source_id
+        if target_folder.exists():
+            files = sorted(p for p in target_folder.iterdir() if p.is_file() and not p.name.startswith("."))
+            if files:
+                st.markdown(f"**Already in `{sel_bucket}/{sel_source_id}/`:**")
+                for f in files[-15:]:
+                    size_kb = f.stat().st_size / 1024
+                    st.write(f"- `{f.name}` ({size_kb:,.1f} KB)")
 
 with tab1:
     day_themes = (
