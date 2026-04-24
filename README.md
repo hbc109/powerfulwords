@@ -64,33 +64,68 @@ One-time setup:
 pip install -r requirements.txt
 python scripts/init_sources.py        # load source registry into SQLite
 python scripts/setup_inbox.py         # create data/inbox/<bucket>/<source_id>/
+python scripts/check_setup.py         # verify everything is healthy
 ```
 
-Daily flow:
+Set your Anthropic API key (free signup at https://console.anthropic.com).
+Without one, extraction falls back to a rule-based mode that still works:
 
 ```bash
-python scripts/fetch_sources.py       # pull fresh narratives into the inbox
+export ANTHROPIC_API_KEY=sk-ant-...
+# Persist it: echo 'export ANTHROPIC_API_KEY=sk-ant-...' >> ~/.bashrc
+```
+
+Optional — wire up email delivery for the morning digest:
+
+```bash
+export SMTP_HOST=smtp.gmail.com
+export SMTP_PORT=587
+export SMTP_USER=you@gmail.com
+export SMTP_PASS=your_app_password    # for Gmail use an App Password
+export SMTP_FROM=you@gmail.com
+export SMTP_TO=trader@example.com
+```
+
+### Run it every morning — one command
+
+```bash
+python scripts/run_daily.py
+```
+
+That runs the full pipeline:
+fetch sources → fetch prices (Yahoo) → ingest → extract → score →
+multi-book backtest → morning digest.
+
+Add `--dashboard` to also launch the Streamlit UI when it's done:
+
+```bash
+python scripts/run_daily.py --dashboard
+```
+
+Outputs:
+- `data/processed/digests/morning_<date>.md` — markdown report
+- (if SMTP set) email to `SMTP_TO`
+- `data/processed/backtests/multi_backtest_crude_oil.json` — per-book P&L
+- Streamlit dashboard at http://localhost:8501
+
+### Individual scripts (for finer control)
+
+```bash
+python scripts/fetch_sources.py       # narratives only
+python scripts/fetch_prices.py        # prices only (Yahoo Finance)
 python scripts/ingest_folder.py       # chunk + store new files
 python scripts/extract_narratives.py  # rule mode (default) or --mode llm
 python scripts/score_narratives.py    # daily subtheme + theme scores
-python scripts/morning_digest.py      # writes data/processed/digests/morning_<date>.md
+python scripts/run_multi_backtest.py  # WTI + Brent + spread + cracks
+python scripts/morning_digest.py      # markdown + optional email
 python scripts/run_dashboard.py       # interactive view
-```
 
-Optional research:
-
-```bash
-python scripts/load_prices_csv.py --csv data/raw/prices/wti_demo_prices.csv
-python scripts/run_event_study.py --symbol WTI --commodity crude_oil --horizons 1,3,5,10
-python scripts/run_backtest.py        # single-symbol backtest
-python scripts/run_multi_backtest.py  # WTI + Brent + Brent-WTI spread + cracks
-python scripts/discover_themes.py     # LLM scans for emerging themes (needs API key)
+python scripts/discover_themes.py     # LLM scans for emerging themes
 python scripts/approve_themes.py      # walk through proposed themes y/n
+python scripts/run_event_study.py --symbol WTI --commodity crude_oil --horizons 1,3,5,10
 ```
 
-See `INBOX_QUICKSTART.md` for the drag-and-drop walkthrough, or the
-older `STEP3_QUICKSTART.md` ... `STEP7_QUICKSTART.md` for the
-manifest-based flow that still works.
+See `INBOX_QUICKSTART.md` for the drag-and-drop walkthrough.
 
 ## LLM provider
 
