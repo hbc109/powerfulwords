@@ -22,7 +22,7 @@ def score_to_target_position(score: float, cfg: dict) -> float:
         return max(-cfg["strong_position"], -cfg["max_abs_position"])
     if score <= cfg["entry_threshold_short"]:
         return max(-cfg["base_position"], -cfg["max_abs_position"])
-    return 0.0 if cfg.get("flat_if_neutral", True) else 0.0
+    return 0.0
 
 
 def aggregate_score_by_date(score_rows: List[dict]) -> List[dict]:

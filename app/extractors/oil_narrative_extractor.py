@@ -68,7 +68,7 @@ def infer_horizon(text: str, rules: dict) -> str:
         return "medium_term"
     if _count_matches(text, rules["swing_words"]) > 0:
         return "swing"
-    return "intraday"
+    return "swing"
 
 def infer_regions(text: str, rules: dict) -> List[str]:
     found = []
@@ -98,13 +98,13 @@ def estimate_credibility(source_bucket: str, source_name: str, rumor_flag: bool)
         base = max(base, 0.93)
     return max(0.05, min(1.0, base))
 
-def derive_event_time(published_at: str | None) -> datetime:
-    if published_at:
-        try:
-            return datetime.fromisoformat(str(published_at).replace("Z", "+00:00"))
-        except Exception:
-            pass
-    return datetime.now(timezone.utc)
+def derive_event_time(published_at: str | None) -> datetime | None:
+    if not published_at:
+        return None
+    try:
+        return datetime.fromisoformat(str(published_at).replace("Z", "+00:00"))
+    except Exception:
+        return None
 
 def make_event_id(document_id: str, chunk_id: str, topic: str) -> str:
     clean_topic = re.sub(r"[^a-z0-9_]+", "", topic.lower())
@@ -113,6 +113,9 @@ def make_event_id(document_id: str, chunk_id: str, topic: str) -> str:
 def extract_event_from_chunk(*, document: dict, chunk: dict, rules: dict) -> NarrativeEvent | None:
     text = chunk["text"].strip()
     if len(text) < 80:
+        return None
+    event_time = derive_event_time(document.get("published_at"))
+    if event_time is None:
         return None
     topic, novelty, default_direction = infer_topic(text, rules)
     if topic == "other":
@@ -127,7 +130,7 @@ def extract_event_from_chunk(*, document: dict, chunk: dict, rules: dict) -> Nar
 
     return NarrativeEvent(
         event_id=make_event_id(document["document_id"], chunk["chunk_id"], topic),
-        event_time=derive_event_time(document.get("published_at")),
+        event_time=event_time,
         commodity="crude_oil",
         topic=topic,
         direction=direction,

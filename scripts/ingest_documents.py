@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from pathlib import Path
 import sys
 
@@ -5,10 +7,8 @@ BASE_DIR = Path(__file__).resolve().parents[1]
 if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
-from __future__ import annotations
 import argparse
 from datetime import datetime
-from pathlib import Path
 from app.db.database import init_db, get_connection
 from app.db.repository import insert_document, insert_chunks
 from app.models.document_record import DocumentRecord

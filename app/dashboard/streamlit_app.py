@@ -7,6 +7,21 @@ import streamlit as st
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 DB_PATH = BASE_DIR / "data" / "oil_narrative.db"
+STRATEGY_CFG_PATH = BASE_DIR / "app" / "config" / "strategy_config.json"
+
+
+def _load_thresholds() -> dict:
+    with open(STRATEGY_CFG_PATH, "r", encoding="utf-8") as f:
+        cfg = json.load(f)
+    return {
+        "long": float(cfg["entry_threshold_long"]),
+        "short": float(cfg["entry_threshold_short"]),
+        "strong_long": float(cfg["strong_entry_threshold_long"]),
+        "strong_short": float(cfg["strong_entry_threshold_short"]),
+    }
+
+
+_THRESHOLDS = _load_thresholds()
 
 
 def load_df(query: str, params: tuple = ()) -> pd.DataFrame:
@@ -67,13 +82,13 @@ def topic_label(x: str) -> str:
 
 
 def bias_label(score: float) -> str:
-    if score >= 1.5:
+    if score >= _THRESHOLDS["strong_long"]:
         return "Strong Bullish"
-    if score > 0:
+    if score >= _THRESHOLDS["long"]:
         return "Bullish"
-    if score <= -1.5:
+    if score <= _THRESHOLDS["strong_short"]:
         return "Strong Bearish"
-    if score < 0:
+    if score <= _THRESHOLDS["short"]:
         return "Bearish"
     return "Neutral"
 

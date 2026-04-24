@@ -1,11 +1,26 @@
 from __future__ import annotations
 
 import csv
+import json
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 from statistics import mean
 from typing import Dict, List, Optional
+
+_BASE_DIR = Path(__file__).resolve().parents[2]
+_STRATEGY_CFG_PATH = _BASE_DIR / "app" / "config" / "strategy_config.json"
+
+
+def _load_thresholds() -> dict:
+    with open(_STRATEGY_CFG_PATH, "r", encoding="utf-8") as f:
+        cfg = json.load(f)
+    return {
+        "long": float(cfg["entry_threshold_long"]),
+        "short": float(cfg["entry_threshold_short"]),
+        "strong_long": float(cfg["strong_entry_threshold_long"]),
+        "strong_short": float(cfg["strong_entry_threshold_short"]),
+    }
 
 
 def load_daily_prices_from_csv(csv_path: Path) -> List[dict]:
@@ -58,14 +73,15 @@ def future_return(close_by_date: Dict[str, float], ordered: List[str], start_dat
     return (p1 / p0) - 1.0
 
 
-def signal_bucket(score: float) -> str:
-    if score >= 0.60:
+def signal_bucket(score: float, thresholds: dict | None = None) -> str:
+    th = thresholds or _load_thresholds()
+    if score >= th["strong_long"]:
         return "strong_bullish"
-    if score >= 0.20:
+    if score >= th["long"]:
         return "bullish"
-    if score <= -0.60:
+    if score <= th["strong_short"]:
         return "strong_bearish"
-    if score <= -0.20:
+    if score <= th["short"]:
         return "bearish"
     return "neutral"
 

@@ -28,13 +28,13 @@ def has_openai_credentials() -> bool:
     return bool(os.environ.get('OPENAI_API_KEY'))
 
 
-def derive_event_time(published_at: str | None) -> datetime:
-    if published_at:
-        try:
-            return datetime.fromisoformat(str(published_at).replace('Z', '+00:00'))
-        except Exception:
-            pass
-    return datetime.now(timezone.utc)
+def derive_event_time(published_at: str | None) -> datetime | None:
+    if not published_at:
+        return None
+    try:
+        return datetime.fromisoformat(str(published_at).replace('Z', '+00:00'))
+    except Exception:
+        return None
 
 
 def make_event_id(document_id: str, chunk_id: str, topic: str) -> str:
@@ -84,10 +84,13 @@ def _call_openai_responses(messages: list[dict], cfg: dict) -> NarrativeExtracti
     return parsed
 
 
-def convert_extraction_to_event(document: dict, chunk: dict, ext: NarrativeExtraction) -> NarrativeEvent:
+def convert_extraction_to_event(document: dict, chunk: dict, ext: NarrativeExtraction) -> NarrativeEvent | None:
+    event_time = derive_event_time(document.get('published_at'))
+    if event_time is None:
+        return None
     return NarrativeEvent(
         event_id=make_event_id(document['document_id'], chunk['chunk_id'], ext.topic),
-        event_time=derive_event_time(document.get('published_at')),
+        event_time=event_time,
         commodity='crude_oil',
         topic=ext.topic,
         direction=ext.direction,
