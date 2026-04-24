@@ -2,6 +2,7 @@ import json
 import sqlite3
 from pathlib import Path
 
+import altair as alt
 import pandas as pd
 import streamlit as st
 
@@ -54,11 +55,19 @@ def load_theme_scores() -> pd.DataFrame:
 
 def load_events() -> pd.DataFrame:
     return load_df("""
-        SELECT event_time, topic, direction, source_bucket, source_name,
+        SELECT event_time, theme, topic, direction, source_bucket, source_name,
                credibility, novelty, verification_status, horizon,
                rumor_flag, confidence, evidence_text
         FROM narrative_events
         ORDER BY event_time DESC
+    """)
+
+
+def load_prices() -> pd.DataFrame:
+    return load_df("""
+        SELECT price_time, symbol, close
+        FROM market_prices
+        ORDER BY price_time
     """)
 
 
@@ -160,7 +169,7 @@ c5.metric("Average Event Confidence", avg_conf)
 
 st.info(f"Main Sources: {main_sources}")
 
-tab1, tab2, tab3 = st.tabs(["Overview", "Research", "Backtest"])
+tab1, tab_trends, tab2, tab3 = st.tabs(["Overview", "Trends", "Research", "Backtest"])
 
 with tab1:
     day_themes = (
@@ -252,6 +261,91 @@ with tab1:
             width="stretch",
             hide_index=True,
         )
+
+with tab_trends:
+    st.subheader("Theme heatmap")
+    if theme_scores.empty:
+        st.write("No theme scores yet.")
+    else:
+        heat_df = theme_scores[["score_date", "theme", "narrative_score"]].copy()
+        heat_df["theme"] = heat_df["theme"].apply(topic_label)
+        heat_chart = (
+            alt.Chart(heat_df)
+            .mark_rect()
+            .encode(
+                x=alt.X("score_date:O", title="Date", sort="ascending"),
+                y=alt.Y("theme:N", title="Theme"),
+                color=alt.Color(
+                    "narrative_score:Q",
+                    scale=alt.Scale(scheme="redblue", domainMid=0),
+                    title="Score",
+                ),
+                tooltip=["score_date", "theme", "narrative_score"],
+            )
+            .properties(height=alt.Step(28))
+        )
+        st.altair_chart(heat_chart, use_container_width=True)
+
+    st.subheader("Narrative vs price")
+    prices = load_prices()
+    if theme_scores.empty or prices.empty:
+        st.write("Need both theme scores and prices loaded to show this chart.")
+    else:
+        daily_total = (
+            theme_scores.groupby("score_date", as_index=False)["narrative_score"].sum()
+            .rename(columns={"narrative_score": "net_narrative"})
+        )
+        daily_total["score_date"] = pd.to_datetime(daily_total["score_date"])
+        px = prices.copy()
+        px["price_time"] = pd.to_datetime(px["price_time"])
+        symbol_opts = sorted(px["symbol"].unique().tolist())
+        symbol_choice = st.selectbox("Price symbol", symbol_opts, index=0)
+        px_one = px[px["symbol"] == symbol_choice][["price_time", "close"]].rename(columns={"price_time": "date"})
+        narr = daily_total.rename(columns={"score_date": "date"})
+        overlay_price = (
+            alt.Chart(px_one)
+            .mark_line(color="#444")
+            .encode(x="date:T", y=alt.Y("close:Q", title=f"{symbol_choice} close"))
+        )
+        overlay_score = (
+            alt.Chart(narr)
+            .mark_bar(opacity=0.45)
+            .encode(
+                x="date:T",
+                y=alt.Y("net_narrative:Q", title="Net narrative score", axis=alt.Axis(titleColor="#1f77b4")),
+                color=alt.condition(
+                    "datum.net_narrative > 0",
+                    alt.value("#1f77b4"),
+                    alt.value("#d62728"),
+                ),
+            )
+        )
+        st.altair_chart(
+            alt.layer(overlay_score, overlay_price).resolve_scale(y="independent"),
+            use_container_width=True,
+        )
+
+    st.subheader("Source-bucket contribution (selected date)")
+    if day_events.empty:
+        st.write("No events on selected date.")
+    else:
+        direction_sign = {"bullish": 1, "bearish": -1, "mixed": 0.25, "neutral": 0}
+        contrib = day_events.copy()
+        contrib["signed"] = contrib["direction"].map(direction_sign).fillna(0) * pd.to_numeric(
+            contrib["confidence"], errors="coerce"
+        ).fillna(0)
+        contrib["theme"] = contrib["theme"].fillna("other").apply(topic_label)
+        stack = (
+            alt.Chart(contrib)
+            .mark_bar()
+            .encode(
+                x=alt.X("theme:N", title="Theme"),
+                y=alt.Y("sum(signed):Q", title="Signed confidence contribution"),
+                color=alt.Color("source_bucket:N", title="Source bucket"),
+                tooltip=["source_bucket", "source_name", "theme", "topic", "direction", "confidence"],
+            )
+        )
+        st.altair_chart(stack, use_container_width=True)
 
 with tab2:
     st.subheader("Research Snapshot")
