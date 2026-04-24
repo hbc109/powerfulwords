@@ -1,0 +1,81 @@
+{
+  "commodity": "crude_oil",
+  "global": {
+    "one_way_cost_bps": 5.0
+  },
+  "books": [
+    {
+      "name": "wti_outright",
+      "instrument": {"type": "outright", "symbol": "WTI"},
+      "book_capital": 40000.0,
+      "entry_threshold_long": 0.2,
+      "entry_threshold_short": -0.2,
+      "strong_entry_threshold_long": 0.6,
+      "strong_entry_threshold_short": -0.6,
+      "base_position": 1.0,
+      "strong_position": 2.0,
+      "max_abs_position": 2.0,
+      "scoring": {
+        "use_themes": true,
+        "theme_weights": {
+          "supply": 1.0,
+          "demand": 1.0,
+          "inventories": 0.8,
+          "macro": 0.6,
+          "geopolitics": 1.2,
+          "other": 0.5
+        },
+        "theme_vetoes": [
+          {"if_theme": "macro", "is": "below", "value": -1.0, "blocks": "long"},
+          {"if_theme": "macro", "is": "above", "value": 1.0, "blocks": "short"}
+        ]
+      }
+    },
+    {
+      "name": "brent_outright",
+      "instrument": {"type": "outright", "symbol": "Brent"},
+      "book_capital": 40000.0,
+      "entry_threshold_long": 0.2,
+      "entry_threshold_short": -0.2,
+      "strong_entry_threshold_long": 0.6,
+      "strong_entry_threshold_short": -0.6,
+      "base_position": 1.0,
+      "strong_position": 2.0,
+      "max_abs_position": 2.0,
+      "scoring": {
+        "use_themes": true,
+        "theme_weights": {
+          "supply": 1.0,
+          "demand": 1.0,
+          "inventories": 0.8,
+          "macro": 0.6,
+          "geopolitics": 1.4,
+          "other": 0.5
+        }
+      }
+    },
+    {
+      "name": "brent_wti_spread",
+      "instrument": {"type": "spread", "long_symbol": "Brent", "short_symbol": "WTI"},
+      "book_capital": 20000.0,
+      "entry_threshold_long": 0.3,
+      "entry_threshold_short": -0.3,
+      "strong_entry_threshold_long": 0.8,
+      "strong_entry_threshold_short": -0.8,
+      "base_position": 1.0,
+      "strong_position": 2.0,
+      "max_abs_position": 2.0,
+      "scoring": {
+        "use_themes": true,
+        "theme_weights": {
+          "supply": 0.6,
+          "demand": 0.3,
+          "inventories": 0.3,
+          "macro": 0.2,
+          "geopolitics": 1.5,
+          "other": 0.2
+        }
+      }
+    }
+  ]
+}
