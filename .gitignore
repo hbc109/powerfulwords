@@ -32,6 +32,20 @@ data/processed/chunks/*
 !data/processed/metadata/.gitkeep
 !data/processed/chunks/.gitkeep
 
+# Inbox: never commit fetched/dropped content (it's user data, can be huge,
+# and may be third-party content we don't have the right to redistribute).
+# Only the folder skeleton (.gitkeep) and the demo seeds checked in
+# explicitly are tracked.
+data/inbox/**
+!data/inbox/README.md
+!data/inbox/**/.gitkeep
+!data/inbox/official_reports/opec_momr/2026-04-19_opec_supply_note.txt
+!data/inbox/social_private_manual/telegram_forwarded/2026-04-19_redsea_tanker_note.txt
+
+# Themes: discovery proposals are runtime artefacts
+data/processed/themes/*
+!data/processed/themes/.gitkeep
+
 # Environment
 .env
 .env.local

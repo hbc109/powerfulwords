@@ -12,9 +12,28 @@ python scripts/setup_inbox.py    # create data/inbox/<bucket>/<source_id>/ folde
 This creates the folder tree from `app/config/source_registry.yaml`.
 Every source_id in the registry gets its own folder.
 
+## Auto-fetching from public sources
+
+Pull recent items from configured public sources (Reddit, EIA TWIP RSS,
+OPEC press releases) directly into the inbox:
+
+```bash
+python scripts/fetch_sources.py            # run every enabled fetcher
+python scripts/fetch_sources.py --only reddit_oil
+python scripts/fetch_sources.py --days 7   # override lookback window
+```
+
+Configure which sources run in `app/config/fetcher_config.json`.
+Re-runs are safe — files already on disk are skipped.
+
+**Network notes**: EIA and OPEC sit behind Akamai/Cloudflare-style edge
+protection that blocks many cloud / VPS IPs. If you see `[BLOCKED]`
+from one of them, run from your home or office network instead.
+
 ## Daily flow
 
-1. Drop files into the matching folder. Filename must start with a date:
+1. Drop files into the matching folder (or run `scripts/fetch_sources.py`).
+   Filename must start with a date:
 
    ```
    data/inbox/official_reports/iea_omr/2026-04-23_iea_omr_apr.pdf
