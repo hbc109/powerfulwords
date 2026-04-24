@@ -46,6 +46,10 @@ data/inbox/**
 data/processed/themes/*
 !data/processed/themes/.gitkeep
 
+# Digests: morning output, regenerated each run
+data/processed/digests/*
+!data/processed/digests/.gitkeep
+
 # Environment
 .env
 .env.local

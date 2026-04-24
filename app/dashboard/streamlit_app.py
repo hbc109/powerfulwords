@@ -11,11 +11,7 @@ BASE_DIR = Path(__file__).resolve().parents[2]
 if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
-from app.strategy.backtest_engine import (
-    aggregate_score_by_date,
-    apply_theme_vetoes,
-    score_to_target_position,
-)
+from app.strategy.recommendations import compute_recommendations as _compute_recs_core
 
 DB_PATH = BASE_DIR / "data" / "oil_narrative.db"
 STRATEGY_CFG_PATH = BASE_DIR / "app" / "config" / "strategy_config.json"
@@ -128,57 +124,27 @@ def load_multi_cfg():
 
 
 def compute_recommendations(theme_scores_df: pd.DataFrame, score_date: str) -> list[dict]:
-    """For the latest score date, compute what each book in multi_strategy_config
-    would target. Returns a list of recommendation dicts."""
     cfg = load_multi_cfg()
     if cfg is None:
         return []
     day_df = theme_scores_df[theme_scores_df["score_date"] == score_date]
     if day_df.empty:
         return []
-    # Build the score_rows shape that aggregate_score_by_date expects.
     score_rows = [
         {"score_date": r["score_date"], "theme": r["theme"], "narrative_score": float(r["narrative_score"])}
         for _, r in day_df.iterrows()
     ]
-    raw_today = {r["theme"]: float(r["narrative_score"]) for r in score_rows}
-
-    recs = []
-    for book in cfg.get("books", []):
-        scoring_cfg = book.get("scoring") or {}
-        weights = scoring_cfg.get("theme_weights")
-        vetoes = scoring_cfg.get("theme_vetoes", [])
-        agg = aggregate_score_by_date(score_rows, weights=weights, group_field="theme")
-        if not agg:
-            continue
-        weighted = float(agg[0]["aggregate_score"])
-        breakdown = agg[0]["breakdown"][:3]
-        proposed = score_to_target_position(weighted, book)
-        target, vetoes_triggered = apply_theme_vetoes(proposed, raw_today, vetoes)
-        if target > 0:
-            direction = "LONG"
-        elif target < 0:
-            direction = "SHORT"
-        else:
-            direction = "FLAT"
-        recs.append({
-            "book": book["name"],
-            "instrument": book["instrument"],
-            "direction": direction,
-            "target_position": target,
-            "proposed_position": proposed,
-            "weighted_score": round(weighted, 4),
-            "top_themes": [{"theme": g, "weighted_score": round(s, 4)} for g, s in breakdown],
-            "vetoes": vetoes_triggered,
-        })
-    return recs
+    return _compute_recs_core(score_rows, cfg)
 
 
 def instrument_label(inst: dict) -> str:
-    if inst.get("type") == "outright":
+    t = inst.get("type")
+    if t == "outright":
         return inst.get("symbol", "?")
-    if inst.get("type") == "spread":
+    if t == "spread":
         return f"{inst.get('long_symbol', '?')}-{inst.get('short_symbol', '?')} spread"
+    if t == "crack":
+        return f"{inst.get('product_symbol', '?')}-{inst.get('crude_symbol', '?')} crack"
     return str(inst)
 
 

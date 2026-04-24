@@ -56,7 +56,13 @@
     },
     {
       "name": "brent_wti_spread",
-      "instrument": {"type": "spread", "long_symbol": "Brent", "short_symbol": "WTI"},
+      "instrument": {
+        "type": "spread",
+        "long_symbol": "Brent",
+        "short_symbol": "WTI",
+        "pnl_method": "point_value",
+        "point_value": 100.0
+      },
       "book_capital": 20000.0,
       "entry_threshold_long": 0.3,
       "entry_threshold_short": -0.3,
@@ -74,6 +80,65 @@
           "macro": 0.2,
           "geopolitics": 1.5,
           "other": 0.2
+        }
+      }
+    },
+    {
+      "name": "gasoline_crack",
+      "instrument": {
+        "type": "crack",
+        "product_symbol": "RBOB_BBL",
+        "crude_symbol": "WTI",
+        "pnl_method": "point_value",
+        "point_value": 100.0
+      },
+      "book_capital": 15000.0,
+      "entry_threshold_long": 0.25,
+      "entry_threshold_short": -0.25,
+      "strong_entry_threshold_long": 0.7,
+      "strong_entry_threshold_short": -0.7,
+      "base_position": 1.0,
+      "strong_position": 2.0,
+      "max_abs_position": 2.0,
+      "scoring": {
+        "use_themes": true,
+        "theme_weights": {
+          "supply": 0.4,
+          "demand": 1.4,
+          "inventories": 0.6,
+          "macro": 0.5,
+          "geopolitics": 0.4,
+          "other": 0.3
+        },
+        "theme_vetoes": []
+      }
+    },
+    {
+      "name": "diesel_crack",
+      "instrument": {
+        "type": "crack",
+        "product_symbol": "ULSD_BBL",
+        "crude_symbol": "WTI",
+        "pnl_method": "point_value",
+        "point_value": 100.0
+      },
+      "book_capital": 15000.0,
+      "entry_threshold_long": 0.25,
+      "entry_threshold_short": -0.25,
+      "strong_entry_threshold_long": 0.7,
+      "strong_entry_threshold_short": -0.7,
+      "base_position": 1.0,
+      "strong_position": 2.0,
+      "max_abs_position": 2.0,
+      "scoring": {
+        "use_themes": true,
+        "theme_weights": {
+          "supply": 0.5,
+          "demand": 1.2,
+          "inventories": 0.5,
+          "macro": 0.5,
+          "geopolitics": 0.4,
+          "other": 0.3
         }
       }
     }

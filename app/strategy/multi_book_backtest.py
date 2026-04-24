@@ -53,9 +53,10 @@ def _close_map_for_symbol(price_rows: List[dict], symbol: str) -> Dict[str, floa
 def resolve_instrument_close_series(
     price_rows: List[dict], instrument: dict
 ) -> List[tuple[str, float]]:
-    """Return [(date, close_or_spread)] sorted by date for the given instrument.
+    """Return [(date, close_or_derived)] sorted by date for the given instrument.
 
-    For spreads, only dates where BOTH legs have closes are included.
+    For spreads and cracks, only dates where ALL legs have closes are included.
+    Crack: product close - crude close (assumes both quoted in $/bbl).
     """
     itype = instrument.get("type", "outright")
     if itype == "outright":
@@ -66,17 +67,52 @@ def resolve_instrument_close_series(
         short_m = _close_map_for_symbol(price_rows, instrument["short_symbol"])
         common = sorted(set(long_m) & set(short_m))
         return [(d, long_m[d] - short_m[d]) for d in common]
+    if itype == "crack":
+        product_m = _close_map_for_symbol(price_rows, instrument["product_symbol"])
+        crude_m = _close_map_for_symbol(price_rows, instrument["crude_symbol"])
+        common = sorted(set(product_m) & set(crude_m))
+        return [(d, product_m[d] - crude_m[d]) for d in common]
     raise ValueError(f"Unknown instrument type: {itype}")
 
 
-def _pnl_pct(price_t: float, price_prev: float, instrument_type: str) -> float:
-    if instrument_type == "outright":
+# ---- P&L models ----
+#
+# Each instrument can specify `pnl_method`:
+#   - "pct_return" (default for outright): PnL_t = book_capital * pos * (close_t/close_{t-1} - 1)
+#   - "point_value" (default for spread, crack): PnL_t = pos * (price_t - price_{t-1}) * point_value
+#
+# point_value defaults: outright=1000, spread=100, crack=100. Override per
+# instrument when you know the real contract spec (NYMEX WTI is 1000 bbl/contract
+# so $1 move = $1000; CME Crack spreads are 1000 bbl/contract too, so $1 move
+# in the crack = $1000 — set point_value: 1000 there).
+
+
+_DEFAULT_POINT_VALUE = {"outright": 1000.0, "spread": 100.0, "crack": 100.0}
+
+
+def _instrument_pnl_method(instrument: dict) -> str:
+    if "pnl_method" in instrument:
+        return instrument["pnl_method"]
+    return "pct_return" if instrument.get("type", "outright") == "outright" else "point_value"
+
+
+def compute_daily_pnl(
+    instrument: dict,
+    book_capital: float,
+    prev_position: float,
+    price_t: float,
+    price_prev: float,
+) -> float:
+    method = _instrument_pnl_method(instrument)
+    if method == "pct_return":
         if price_prev == 0:
             return 0.0
-        return (price_t / price_prev) - 1.0
-    # spread
-    denom = max(abs(price_prev), 1.0)
-    return (price_t - price_prev) / denom
+        return book_capital * prev_position * ((price_t / price_prev) - 1.0)
+    if method == "point_value":
+        itype = instrument.get("type", "outright")
+        pv = float(instrument.get("point_value", _DEFAULT_POINT_VALUE.get(itype, 100.0)))
+        return prev_position * (price_t - price_prev) * pv
+    raise ValueError(f"Unknown pnl_method: {method}")
 
 
 def run_book(book_cfg: dict, score_rows: List[dict], price_rows: List[dict], cost_bps: float) -> dict:
@@ -106,7 +142,6 @@ def run_book(book_cfg: dict, score_rows: List[dict], price_rows: List[dict], cos
 
     book_capital = float(book_cfg["book_capital"])
     cost_rate = float(cost_bps) / 10000.0
-    instrument_type = instrument.get("type", "outright")
 
     equity = book_capital
     prev_price = None
@@ -130,8 +165,7 @@ def run_book(book_cfg: dict, score_rows: List[dict], price_rows: List[dict], cos
 
         pnl = 0.0
         if prev_price is not None:
-            pct = _pnl_pct(price, prev_price, instrument_type)
-            pnl = book_capital * prev_position * pct
+            pnl = compute_daily_pnl(instrument, book_capital, prev_position, price, prev_price)
 
         turnover = abs(target_position - prev_position)
         cost = book_capital * turnover * cost_rate
