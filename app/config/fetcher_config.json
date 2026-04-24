@@ -41,7 +41,7 @@
     {
       "name": "reuters_energy_business",
       "type": "rss",
-      "enabled": false,
+      "enabled": true,
       "params": {
         "feed_url": "https://www.reutersagency.com/feed/?best-topics=business-finance&post_type=best",
         "source_id": "reuters_energy",
@@ -56,6 +56,40 @@
       "enabled": true,
       "params": {
         "source_id": "opec_press_releases",
+        "source_bucket": "official_data",
+        "limit": 10
+      }
+    },
+    {
+      "name": "iea_news",
+      "type": "iea_news",
+      "enabled": true,
+      "params": {
+        "source_id": "iea_omr",
+        "source_bucket": "official_reports",
+        "limit": 10
+      }
+    },
+    {
+      "name": "shana_iran",
+      "type": "agency_html",
+      "enabled": true,
+      "params": {
+        "listing_url": "https://www.shana.ir/en/service/2",
+        "link_filter": "/news/",
+        "source_id": "shana_iran",
+        "source_bucket": "official_data",
+        "limit": 10
+      }
+    },
+    {
+      "name": "spa_saudi",
+      "type": "agency_html",
+      "enabled": true,
+      "params": {
+        "listing_url": "https://www.spa.gov.sa/en",
+        "link_filter": "/news",
+        "source_id": "spa_saudi",
         "source_bucket": "official_data",
         "limit": 10
       }

@@ -64,6 +64,12 @@ def run_fetcher(spec: dict, since: date) -> list[FetchedDocument]:
     if typ == "opec_press":
         from app.fetchers.opec_press import fetch_press_releases
         return fetch_press_releases(**params)
+    if typ == "iea_news":
+        from app.fetchers.iea_news import fetch_iea_news
+        return fetch_iea_news(**params)
+    if typ == "agency_html":
+        from app.fetchers.agency_html import fetch_agency
+        return fetch_agency(**params)
     raise ValueError(f"Unknown fetcher type: {typ}")
 
 
