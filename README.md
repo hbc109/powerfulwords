@@ -1,66 +1,177 @@
 # Oil Narrative Engine
 
-An end-to-end prototype for crude oil narrative research, signal generation, event study, dashboard monitoring, and rule-based backtesting.
+End-to-end prototype that turns unstructured crude-oil narratives
+(official reports, sell-side research, news, market chatter) into
+structured signals, daily theme scores, multi-instrument backtests,
+and an actionable morning digest.
 
 ## What this project does
 
-This repository turns unstructured oil-market information into structured research outputs.
+```
+fetch  →  ingest  →  extract  →  score  →  research/backtest  →  recommend
+```
 
-Pipeline:
+Concretely:
 
-1. Ingest documents from a categorized inbox (`data/inbox/<bucket>/<source_id>/`)
-   or from a CSV manifest
-2. Parse and chunk PDF / DOCX / TXT files
-3. Extract narrative events using either:
-   - a rule-based baseline extractor (multi-topic per chunk)
-   - a provider-agnostic LLM extractor (Claude default, OpenAI optional)
-4. Score daily narratives per topic with breadth, persistence, source
-   divergence, crowding, and a free-source bonus
-5. Run event studies against price data
-6. Run a daily backtest with per-trade topic attribution
-7. Monitor results in a Streamlit dashboard
+1. **Fetch** narratives from public sources (Reddit, EIA, IEA, OPEC,
+   Reuters, SHANA, SPA) into a categorized inbox.
+2. **Ingest** dropped/fetched files (PDF / DOCX / TXT). The inbox is
+   the drop point — no CSV manifests needed.
+3. **Extract** narrative events using either a rule-based extractor
+   (multi-topic per chunk) or a provider-agnostic LLM extractor
+   (Claude default, OpenAI optional).
+4. **Score** daily narratives at both subtheme and rolled-up theme
+   levels, with breadth, persistence, source divergence, crowding,
+   and a free-source bonus.
+5. **Research / backtest** against price series. Multi-book engine
+   supports outrights, spreads, and product cracks with per-book
+   theme weights and vetoes.
+6. **Recommend**: morning markdown digest plus an interactive
+   Streamlit dashboard with heatmaps, narrative-vs-price overlay,
+   source attribution, today's recommendations, and per-book P&L.
 
 ## Main features
 
-- **Drag-and-drop ingestion** via categorized inbox folders — no manifest needed
-- SQLite storage with additive schema migrations
-- Crude oil narrative taxonomy with multi-topic extraction per chunk
-- **Provider-agnostic LLM** layer (Claude / OpenAI), with rule-based fallback
-- Free-source preference baked into scoring
-- Daily narrative scoring across topic / breadth / persistence / divergence
-- Forward-return event study
-- Daily backtest with topic attribution per trade
-- Streamlit dashboard
+- **Drag-and-drop inbox** at `data/inbox/<bucket>/<source_id>/` —
+  filename `YYYY-MM-DD_slug.ext` is enough metadata.
+- **Auto-fetchers** for Reddit, EIA TWIP RSS, IEA news, OPEC press
+  releases, Reuters, and a generic state-news-agency scraper for
+  SHANA / SPA.
+- **3-tier source taxonomy** (official / institutional / chatter)
+  with a free-source preference baked into scoring.
+- **Theme + subtheme hierarchy** — five main themes (supply, demand,
+  inventories, macro, geopolitics) over the existing topic taxonomy,
+  rolled up into a daily theme tape.
+- **LLM theme discovery** — Claude scans recent chunks and proposes
+  new themes/subthemes that don't fit the taxonomy. Interactive CLI
+  to promote them into the live config.
+- **Provider-agnostic LLM layer** (Claude default, OpenAI supported)
+  with rule-based fallback when no API key is set.
+- **Theme-conditioned strategy** — per-theme weights and vetoes
+  (e.g. "no long oil while macro is strongly bearish").
+- **Multi-instrument backtest** — outrights, spreads, and product
+  cracks with configurable point-value P&L.
+- **Morning digest** — markdown report with recommendations, theme
+  tape, and top evidence. Optional SMTP email delivery.
+- **Streamlit dashboard** — Recommendations / Overview / Trends /
+  Research / Backtest / Multi-book tabs.
 
 ## Quickstart
 
-See `INBOX_QUICKSTART.md` for the drag-and-drop flow, or the older
-`STEP3_QUICKSTART.md` ... `STEP7_QUICKSTART.md` for the manifest-based flow.
+One-time setup:
+
+```bash
+pip install -r requirements.txt
+python scripts/init_sources.py        # load source registry into SQLite
+python scripts/setup_inbox.py         # create data/inbox/<bucket>/<source_id>/
+```
+
+Daily flow:
+
+```bash
+python scripts/fetch_sources.py       # pull fresh narratives into the inbox
+python scripts/ingest_folder.py       # chunk + store new files
+python scripts/extract_narratives.py  # rule mode (default) or --mode llm
+python scripts/score_narratives.py    # daily subtheme + theme scores
+python scripts/morning_digest.py      # writes data/processed/digests/morning_<date>.md
+python scripts/run_dashboard.py       # interactive view
+```
+
+Optional research:
+
+```bash
+python scripts/load_prices_csv.py --csv data/raw/prices/wti_demo_prices.csv
+python scripts/run_event_study.py --symbol WTI --commodity crude_oil --horizons 1,3,5,10
+python scripts/run_backtest.py        # single-symbol backtest
+python scripts/run_multi_backtest.py  # WTI + Brent + Brent-WTI spread + cracks
+python scripts/discover_themes.py     # LLM scans for emerging themes (needs API key)
+python scripts/approve_themes.py      # walk through proposed themes y/n
+```
+
+See `INBOX_QUICKSTART.md` for the drag-and-drop walkthrough, or the
+older `STEP3_QUICKSTART.md` ... `STEP7_QUICKSTART.md` for the
+manifest-based flow that still works.
+
+## LLM provider
+
+Default: Claude (`claude-sonnet-4-6` via the `anthropic` SDK).
+Switch to OpenAI by editing the `provider` field in
+`app/config/llm_config.json`. Set the matching env var:
+
+```bash
+export ANTHROPIC_API_KEY=...   # default
+# or
+export OPENAI_API_KEY=...
+```
+
+No key? The pipeline runs end-to-end with the rule-based extractor.
+
+## Optional email delivery
+
+Set these to have `morning_digest.py` send the report instead of
+just writing the file:
+
+```bash
+export SMTP_HOST=smtp.gmail.com
+export SMTP_PORT=587
+export SMTP_USER=you@gmail.com
+export SMTP_PASS=your_app_password
+export SMTP_FROM=you@gmail.com
+export SMTP_TO=trader@example.com
+# export SMTP_SSL=1                # optional, use SMTPS instead of STARTTLS
+```
 
 ## Repository structure
 
 ```text
 app/
-  config/        configuration files
+  config/        scoring, strategy, multi-strategy, LLM, theme hierarchy,
+                 fetcher and source-registry configs
+  dashboard/     Streamlit app (Recommendations / Overview / Trends /
+                 Research / Backtest / Multi-book tabs)
   db/            SQLite connection and repository helpers
-  dashboard/     Streamlit dashboard
-  extractors/    rule-based and LLM extractors
+  discovery/     LLM-driven theme discovery
+  extractors/    rule-based + LLM narrative extractors, provider layer
+  fetchers/      Reddit, RSS, OPEC, IEA, agency_html
   models/        Pydantic models
   prompts/       LLM prompt templates
-  research/      event study logic
-  scoring/       daily score aggregation
-  strategy/      backtest engine
+  research/      forward-return event study
+  scoring/       daily score aggregation + theme rollup
+  strategy/      backtest engine, multi-book engine, recommendations
 
 scripts/
-  init_sources.py
-  ingest_documents.py
-  extract_narratives.py
-  score_narratives.py
-  load_prices_csv.py
-  run_event_study.py
-  run_backtest.py
-  run_dashboard.py
+  setup_inbox.py            create the categorized inbox folder tree
+  init_sources.py           load source registry into SQLite
+  fetch_sources.py          pull fresh narratives into the inbox
+  ingest_folder.py          ingest everything new from the inbox
+  ingest_documents.py       (alt) manifest-based ingestion
+  extract_narratives.py     rule or LLM extraction
+  score_narratives.py       daily subtheme + theme rollup
+  load_prices_csv.py        load market_prices from CSV
+  run_event_study.py        forward-return event study
+  run_backtest.py           single-symbol backtest
+  run_multi_backtest.py     multi-instrument backtest (WTI / Brent / spread / cracks)
+  discover_themes.py        LLM scan for emerging themes
+  approve_themes.py         interactive y/n promotion of proposed themes
+  morning_digest.py         markdown digest + optional SMTP email
+  run_dashboard.py          launch Streamlit
+  inspect_*.py              CLI inspectors for scores / event studies / backtests
 
 data/
-  raw/           input documents and price CSV files
-  processed/     generated outputs
+  inbox/                    drop point (gitignored — only the folder
+                            skeleton + a couple of demo seeds are tracked)
+  raw/                      legacy demo inputs and price CSVs
+  processed/                generated outputs (gitignored except .gitkeep):
+                              clean_text/, chunks/, metadata/, events/,
+                              signals/, signals/themes/, research/,
+                              backtests/, themes/, digests/
+  oil_narrative.db          SQLite DB (gitignored)
+```
+
+## Network notes
+
+Several public sources sit behind Akamai/Cloudflare-style edge
+protection that blocks data-center / VPS IPs. From a normal home or
+office network they work fine; from cloud you may see `[BLOCKED]`
+from EIA, OPEC, IEA, SHANA, or SPA. Reddit and most RSS feeds work
+from anywhere.
