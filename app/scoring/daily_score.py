@@ -48,6 +48,13 @@ def compute_event_strength(event: dict, cfg: dict) -> float:
     if event["verification_status"] == "officially_confirmed":
         strength *= (1.0 + cfg["official_confirmation_bonus"])
 
+    # Small bonus for free sources: keeps the system biased toward the
+    # free tier we explicitly want to lean on (EIA, IEA, OPEC, OFAC,
+    # earnings calls, gov press releases) without disabling paid input.
+    free_bonus = cfg.get("free_source_bonus", 0.0)
+    if free_bonus and (event.get("cost_level") or "").lower() == "free":
+        strength *= (1.0 + free_bonus)
+
     return round(strength, 6)
 
 

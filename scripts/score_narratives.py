@@ -17,13 +17,20 @@ BASE_DIR = Path(__file__).resolve().parents[1]
 
 
 def fetch_events(conn):
+    # Join through documents to sources so the scorer can see cost_level
+    # (free vs paid) and apply the free_source_bonus.
     cur = conn.execute(
         '''
         SELECT
-            event_id, event_time, commodity, topic, direction, source_bucket, source_name,
-            credibility, novelty, verification_status, horizon, rumor_flag, confidence
-        FROM narrative_events
-        ORDER BY event_time, topic
+            e.event_id, e.event_time, e.commodity, e.topic, e.direction,
+            e.source_bucket, e.source_name, e.credibility, e.novelty,
+            e.verification_status, e.horizon, e.rumor_flag, e.confidence,
+            COALESCE(s.cost_level, d.cost_level) AS cost_level,
+            d.source_id
+        FROM narrative_events e
+        LEFT JOIN documents d ON d.document_id = e.document_id
+        LEFT JOIN sources s ON s.source_id = d.source_id
+        ORDER BY e.event_time, e.topic
         '''
     )
     rows = cur.fetchall()
@@ -43,6 +50,8 @@ def fetch_events(conn):
             "horizon": r[10],
             "rumor_flag": bool(r[11]),
             "confidence": r[12],
+            "cost_level": r[13],
+            "source_id": r[14],
         })
     return events
 

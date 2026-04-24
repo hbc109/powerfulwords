@@ -14,7 +14,12 @@ from pathlib import Path
 
 from app.db.database import get_connection
 from app.extractors.oil_narrative_extractor import load_rules, extract_events_from_chunk
-from app.extractors.llm_narrative_extractor import extract_event_from_chunk_llm, load_llm_config
+from app.extractors.llm_narrative_extractor import (
+    configured_provider,
+    extract_event_from_chunk_llm,
+    has_llm_credentials,
+    load_llm_config,
+)
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 
@@ -98,7 +103,7 @@ def choose_mode(requested_mode: str) -> str:
     if requested_mode in ('rule', 'llm'):
         return requested_mode
     llm_cfg = load_llm_config()
-    if os.environ.get('OPENAI_API_KEY'):
+    if has_llm_credentials(llm_cfg):
         return 'llm'
     if llm_cfg.get('mode_default') == 'llm':
         return 'llm'
@@ -129,6 +134,8 @@ def main() -> None:
     selected_mode = choose_mode(args.mode)
     llm_cfg = load_llm_config()
     allow_fallback = bool(llm_cfg.get('fallback_to_rules', True))
+    if selected_mode == 'llm':
+        print(f"[LLM] provider={configured_provider(llm_cfg)}")
 
     count = 0
     llm_count = 0

@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import json
-import os
 import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from app.extractors.llm_providers import call_provider, has_credentials
 from app.models.narrative import NarrativeEvent
 from app.models.narrative_extraction import NarrativeExtraction
 
@@ -20,12 +20,27 @@ def load_llm_config() -> dict:
         return json.load(f)
 
 
+def configured_provider(cfg: dict | None = None) -> str:
+    cfg = cfg or load_llm_config()
+    return cfg.get('provider', 'anthropic')
+
+
+def provider_config(cfg: dict | None = None) -> dict:
+    cfg = cfg or load_llm_config()
+    provider = configured_provider(cfg)
+    providers_block = cfg.get('providers') or {}
+    if provider in providers_block:
+        return providers_block[provider]
+    # Backwards-compat with the old flat config (no `providers` block).
+    return {k: v for k, v in cfg.items() if k not in ('provider', 'providers', 'mode_default', 'fallback_to_rules')}
+
+
+def has_llm_credentials(cfg: dict | None = None) -> bool:
+    return has_credentials(configured_provider(cfg))
+
+
 def load_prompt_template() -> str:
     return PROMPT_PATH.read_text(encoding='utf-8')
-
-
-def has_openai_credentials() -> bool:
-    return bool(os.environ.get('OPENAI_API_KEY'))
 
 
 def derive_event_time(published_at: str | None) -> datetime | None:
@@ -69,21 +84,6 @@ def build_messages(document: dict, chunk: dict, prompt_template: str) -> list[di
     ]
 
 
-def _call_openai_responses(messages: list[dict], cfg: dict) -> NarrativeExtraction:
-    from openai import OpenAI
-
-    client = OpenAI(timeout=cfg.get('request_timeout_seconds', 60))
-    response = client.responses.parse(
-        model=cfg.get('model', 'gpt-5.2'),
-        input=messages,
-        text_format=NarrativeExtraction,
-    )
-    parsed = response.output_parsed
-    if parsed is None:
-        raise ValueError('LLM returned no parsed output.')
-    return parsed
-
-
 def convert_extraction_to_event(document: dict, chunk: dict, ext: NarrativeExtraction) -> NarrativeEvent | None:
     event_time = derive_event_time(document.get('published_at'))
     if event_time is None:
@@ -120,11 +120,11 @@ def convert_extraction_to_event(document: dict, chunk: dict, ext: NarrativeExtra
 
 def extract_event_from_chunk_llm(document: dict, chunk: dict) -> Optional[NarrativeEvent]:
     cfg = load_llm_config()
-    if not has_openai_credentials():
-        raise RuntimeError('OPENAI_API_KEY not found.')
+    provider = configured_provider(cfg)
+    pcfg = provider_config(cfg)
     prompt_template = load_prompt_template()
     messages = build_messages(document, chunk, prompt_template)
-    ext = _call_openai_responses(messages, cfg)
+    ext = call_provider(provider, messages, pcfg)
     if not ext.should_extract:
         return None
     return convert_extraction_to_event(document, chunk, ext)

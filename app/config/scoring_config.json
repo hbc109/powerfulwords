@@ -28,5 +28,6 @@
   "rumor_penalty": 0.18,
   "crowding_topic_threshold": 4,
   "crowding_penalty_per_extra_event": 0.04,
-  "official_confirmation_bonus": 0.12
+  "official_confirmation_bonus": 0.12,
+  "free_source_bonus": 0.05
 }

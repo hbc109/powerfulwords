@@ -11,27 +11,182 @@ source_buckets:
   - social_open
   - social_private_manual
 
+# Free-by-default registry. Paid sources (Argus, Platts, Energy Intelligence,
+# sell-side broker reports, Kpler, Vortexa) can be added as separate entries
+# when you have the rights to upload them. Drop the file in the matching
+# folder under data/inbox/ and ingest_folder.py will pick it up.
+
 sources:
+  # --- Free official data ---
+  - source_id: eia_weekly_petroleum
+    source_name: EIA
+    source_bucket: official_data
+    access_mode: website_csv
+    cost_level: free
+    credibility_tier: 1
+    notes: U.S. Weekly Petroleum Status Report. Authoritative inventory data.
+
+  - source_id: eia_steo
+    source_name: EIA
+    source_bucket: official_reports
+    access_mode: website_pdf
+    cost_level: free
+    credibility_tier: 1
+    notes: Short-Term Energy Outlook (monthly forecast).
+
+  - source_id: iea_omr
+    source_name: IEA
+    source_bucket: official_reports
+    access_mode: website_pdf
+    cost_level: free
+    credibility_tier: 1
+    notes: Oil Market Report (monthly). Some content gated; use the public summary.
+
   - source_id: opec_momr
     source_name: OPEC
     source_bucket: official_reports
     access_mode: website_pdf
     cost_level: free
     credibility_tier: 1
-    notes: Official reports and commentary.
+    notes: OPEC Monthly Oil Market Report and policy statements.
 
-  - source_id: telegram_forwarded
-    source_name: Forwarded Telegram
-    source_bucket: social_private_manual
+  - source_id: opec_press_releases
+    source_name: OPEC
+    source_bucket: official_data
+    access_mode: website_html
+    cost_level: free
+    credibility_tier: 1
+    notes: OPEC+ press releases announcing quota and compliance decisions.
+
+  - source_id: ofac_announcements
+    source_name: OFAC
+    source_bucket: official_data
+    access_mode: website_html
+    cost_level: free
+    credibility_tier: 1
+    notes: U.S. Treasury sanctions designations and price-cap guidance.
+
+  - source_id: shana_iran
+    source_name: SHANA
+    source_bucket: official_data
+    access_mode: website_html
+    cost_level: free
+    credibility_tier: 2
+    notes: Iranian Oil Ministry news agency.
+
+  - source_id: spa_saudi
+    source_name: SPA
+    source_bucket: official_data
+    access_mode: website_html
+    cost_level: free
+    credibility_tier: 2
+    notes: Saudi Press Agency (official statements from the Kingdom).
+
+  - source_id: imf_weo
+    source_name: IMF
+    source_bucket: official_reports
+    access_mode: website_pdf
+    cost_level: free
+    credibility_tier: 1
+    notes: World Economic Outlook (macro context for oil demand).
+
+  - source_id: world_bank_commodity
+    source_name: World Bank
+    source_bucket: official_reports
+    access_mode: website_pdf
+    cost_level: free
+    credibility_tier: 1
+    notes: Commodity Markets Outlook.
+
+  # --- Free institutional / corporate ---
+  - source_id: producer_press_release
+    source_name: Producer Press Releases
+    source_bucket: institutional_public
+    access_mode: website_html
+    cost_level: free
+    credibility_tier: 2
+    notes: Aramco, Exxon, Shell, BP, Chevron, Reliance press releases and earnings calls.
+
+  - source_id: refiner_earnings
+    source_name: Refiner Earnings Calls
+    source_bucket: institutional_public
     access_mode: manual_upload
-    cost_level: proprietary
-    credibility_tier: 5
-    notes: Rumor-prone forwarded market chatter.
+    cost_level: free
+    credibility_tier: 2
+    notes: Public earnings call transcripts revealing demand views ahead of agencies.
 
+  # --- Free authoritative news ---
+  - source_id: reuters_energy
+    source_name: Reuters
+    source_bucket: authoritative_news
+    access_mode: website_html
+    cost_level: free
+    credibility_tier: 2
+    notes: Reuters energy desk free articles.
+
+  - source_id: bloomberg_energy_free
+    source_name: Bloomberg
+    source_bucket: authoritative_news
+    access_mode: website_html
+    cost_level: free
+    credibility_tier: 2
+    notes: Bloomberg energy free tier headlines only; full terminal is paid.
+
+  # --- Sell-side / paid (manual upload, drop into data/inbox/sellside_private/) ---
   - source_id: sellside_manual_upload
     source_name: Sellside Reports Manual Upload
     source_bucket: sellside_private
     access_mode: manual_upload
     cost_level: proprietary
     credibility_tier: 2
-    notes: Only ingest documents you are authorized to use.
+    notes: Generic bucket for GS / MS / BoA / Macq research. Only ingest documents you are authorized to use.
+
+  # --- Open social (free) ---
+  - source_id: x_open
+    source_name: X / Twitter
+    source_bucket: social_open
+    access_mode: manual_upload
+    cost_level: free
+    credibility_tier: 4
+    notes: Public X posts. Credibility varies wildly by account.
+
+  - source_id: reddit_oil
+    source_name: Reddit
+    source_bucket: social_open
+    access_mode: manual_upload
+    cost_level: free
+    credibility_tier: 5
+    notes: r/oil, r/wallstreetbets etc.
+
+  - source_id: truth_social
+    source_name: Truth Social
+    source_bucket: social_open
+    access_mode: manual_upload
+    cost_level: free
+    credibility_tier: 5
+    notes: Truth Social posts with potential market impact.
+
+  # --- Private chatter (manual upload from WeChat / Telegram / WhatsApp) ---
+  - source_id: telegram_forwarded
+    source_name: Forwarded Telegram
+    source_bucket: social_private_manual
+    access_mode: manual_upload
+    cost_level: free
+    credibility_tier: 5
+    notes: Rumor-prone forwarded market chatter from Telegram.
+
+  - source_id: wechat_forwarded
+    source_name: Forwarded WeChat
+    source_bucket: social_private_manual
+    access_mode: manual_upload
+    cost_level: free
+    credibility_tier: 5
+    notes: Forwarded WeChat group chatter (Chinese-language oil traders).
+
+  - source_id: whatsapp_forwarded
+    source_name: Forwarded WhatsApp
+    source_bucket: social_private_manual
+    access_mode: manual_upload
+    cost_level: free
+    credibility_tier: 5
+    notes: Forwarded WhatsApp group chatter.

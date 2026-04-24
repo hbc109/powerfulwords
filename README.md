@@ -8,27 +8,34 @@ This repository turns unstructured oil-market information into structured resear
 
 Pipeline:
 
-1. Ingest documents from local folders and CSV manifests
+1. Ingest documents from a categorized inbox (`data/inbox/<bucket>/<source_id>/`)
+   or from a CSV manifest
 2. Parse and chunk PDF / DOCX / TXT files
 3. Extract narrative events using either:
-   - a rule-based baseline extractor
-   - an OpenAI-powered LLM extractor
-4. Score daily narratives across topics and sources
+   - a rule-based baseline extractor (multi-topic per chunk)
+   - a provider-agnostic LLM extractor (Claude default, OpenAI optional)
+4. Score daily narratives per topic with breadth, persistence, source
+   divergence, crowding, and a free-source bonus
 5. Run event studies against price data
-6. Run a simple daily backtest
+6. Run a daily backtest with per-trade topic attribution
 7. Monitor results in a Streamlit dashboard
 
 ## Main features
 
-- Local document ingestion
-- SQLite storage
-- Crude oil narrative taxonomy
-- Rule-based extraction
-- Optional OpenAI LLM extraction with fallback
-- Daily narrative scoring
+- **Drag-and-drop ingestion** via categorized inbox folders — no manifest needed
+- SQLite storage with additive schema migrations
+- Crude oil narrative taxonomy with multi-topic extraction per chunk
+- **Provider-agnostic LLM** layer (Claude / OpenAI), with rule-based fallback
+- Free-source preference baked into scoring
+- Daily narrative scoring across topic / breadth / persistence / divergence
 - Forward-return event study
-- Daily rule-based backtest
+- Daily backtest with topic attribution per trade
 - Streamlit dashboard
+
+## Quickstart
+
+See `INBOX_QUICKSTART.md` for the drag-and-drop flow, or the older
+`STEP3_QUICKSTART.md` ... `STEP7_QUICKSTART.md` for the manifest-based flow.
 
 ## Repository structure
 
