@@ -1,5 +1,6 @@
 import json
 import sqlite3
+import sys
 from pathlib import Path
 
 import altair as alt
@@ -7,8 +8,18 @@ import pandas as pd
 import streamlit as st
 
 BASE_DIR = Path(__file__).resolve().parents[2]
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
+
+from app.strategy.backtest_engine import (
+    aggregate_score_by_date,
+    apply_theme_vetoes,
+    score_to_target_position,
+)
+
 DB_PATH = BASE_DIR / "data" / "oil_narrative.db"
 STRATEGY_CFG_PATH = BASE_DIR / "app" / "config" / "strategy_config.json"
+MULTI_CFG_PATH = BASE_DIR / "app" / "config" / "multi_strategy_config.json"
 
 
 def _load_thresholds() -> dict:
@@ -97,6 +108,80 @@ def load_backtest_payload():
         return None
 
 
+def load_multi_backtest_payload():
+    backtest_dir = BASE_DIR / "data" / "processed" / "backtests"
+    if not backtest_dir.exists():
+        return None
+    files = sorted(backtest_dir.glob("multi_backtest_*.json"))
+    if not files:
+        return None
+    try:
+        return json.loads(files[-1].read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
+def load_multi_cfg():
+    if not MULTI_CFG_PATH.exists():
+        return None
+    return json.loads(MULTI_CFG_PATH.read_text(encoding="utf-8"))
+
+
+def compute_recommendations(theme_scores_df: pd.DataFrame, score_date: str) -> list[dict]:
+    """For the latest score date, compute what each book in multi_strategy_config
+    would target. Returns a list of recommendation dicts."""
+    cfg = load_multi_cfg()
+    if cfg is None:
+        return []
+    day_df = theme_scores_df[theme_scores_df["score_date"] == score_date]
+    if day_df.empty:
+        return []
+    # Build the score_rows shape that aggregate_score_by_date expects.
+    score_rows = [
+        {"score_date": r["score_date"], "theme": r["theme"], "narrative_score": float(r["narrative_score"])}
+        for _, r in day_df.iterrows()
+    ]
+    raw_today = {r["theme"]: float(r["narrative_score"]) for r in score_rows}
+
+    recs = []
+    for book in cfg.get("books", []):
+        scoring_cfg = book.get("scoring") or {}
+        weights = scoring_cfg.get("theme_weights")
+        vetoes = scoring_cfg.get("theme_vetoes", [])
+        agg = aggregate_score_by_date(score_rows, weights=weights, group_field="theme")
+        if not agg:
+            continue
+        weighted = float(agg[0]["aggregate_score"])
+        breakdown = agg[0]["breakdown"][:3]
+        proposed = score_to_target_position(weighted, book)
+        target, vetoes_triggered = apply_theme_vetoes(proposed, raw_today, vetoes)
+        if target > 0:
+            direction = "LONG"
+        elif target < 0:
+            direction = "SHORT"
+        else:
+            direction = "FLAT"
+        recs.append({
+            "book": book["name"],
+            "instrument": book["instrument"],
+            "direction": direction,
+            "target_position": target,
+            "proposed_position": proposed,
+            "weighted_score": round(weighted, 4),
+            "top_themes": [{"theme": g, "weighted_score": round(s, 4)} for g, s in breakdown],
+            "vetoes": vetoes_triggered,
+        })
+    return recs
+
+
+def instrument_label(inst: dict) -> str:
+    if inst.get("type") == "outright":
+        return inst.get("symbol", "?")
+    if inst.get("type") == "spread":
+        return f"{inst.get('long_symbol', '?')}-{inst.get('short_symbol', '?')} spread"
+    return str(inst)
+
+
 def topic_label(x: str) -> str:
     return str(x).replace("_", " ").title()
 
@@ -169,7 +254,46 @@ c5.metric("Average Event Confidence", avg_conf)
 
 st.info(f"Main Sources: {main_sources}")
 
-tab1, tab_trends, tab2, tab3 = st.tabs(["Overview", "Trends", "Research", "Backtest"])
+tab_recs, tab1, tab_trends, tab2, tab3, tab_multi = st.tabs(
+    ["Recommendations", "Overview", "Trends", "Research", "Backtest", "Multi-book"]
+)
+
+with tab_recs:
+    st.subheader(f"Recommendations for {selected_date}")
+    if theme_scores.empty:
+        st.write("No theme scores yet. Run scripts/score_narratives.py.")
+    else:
+        recs = compute_recommendations(theme_scores, selected_date)
+        if not recs:
+            st.write("No theme rows for the selected date, or no books configured.")
+        else:
+            cols = st.columns(len(recs))
+            for col, r in zip(cols, recs):
+                with col:
+                    color = {"LONG": "#1f77b4", "SHORT": "#d62728", "FLAT": "#888888"}[r["direction"]]
+                    st.markdown(
+                        f"<div style='border-left: 6px solid {color}; padding-left: 8px;'>"
+                        f"<b>{r['book']}</b><br/>"
+                        f"<small>{instrument_label(r['instrument'])}</small></div>",
+                        unsafe_allow_html=True,
+                    )
+                    st.metric("Direction", r["direction"], delta=f"{r['target_position']:+.1f}")
+                    st.write(f"Weighted score: **{r['weighted_score']:+.3f}**")
+                    if r["proposed_position"] != r["target_position"]:
+                        st.warning(
+                            f"Vetoed (proposed {r['proposed_position']:+.1f} → forced flat)"
+                        )
+                    if r["top_themes"]:
+                        st.caption("Top theme drivers")
+                        for t in r["top_themes"]:
+                            st.write(f"- {topic_label(t['theme'])}: {t['weighted_score']:+.3f}")
+                    if r["vetoes"]:
+                        with st.expander("Vetoes"):
+                            for v in r["vetoes"]:
+                                st.write(
+                                    f"`{v['if_theme']}` {v['is']} {v['value']} "
+                                    f"(score {v['theme_score']:+.3f}) blocks {v['blocks']}"
+                                )
 
 with tab1:
     day_themes = (
@@ -415,3 +539,71 @@ with tab3:
             st.dataframe(trades_df.tail(20), width="stretch", hide_index=True)
         else:
             st.write("No trades recorded in backtest.")
+
+with tab_multi:
+    st.subheader("Multi-book backtest")
+    multi = load_multi_backtest_payload()
+    if not multi:
+        st.write(
+            "No multi-book backtest output yet. Run "
+            "`python scripts/run_multi_backtest.py` to generate one."
+        )
+    else:
+        portfolio = multi.get("portfolio", {})
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Initial Capital", f"{portfolio.get('initial_capital', 0):,.0f}")
+        m2.metric("Final Equity", f"{portfolio.get('final_equity', 0):,.0f}")
+        m3.metric("Total Return", f"{(portfolio.get('total_return') or 0)*100:+.2f}%")
+        m4.metric("Books / Trades", f"{portfolio.get('num_books', 0)} / {portfolio.get('num_trades', 0)}")
+
+        # Per-book equity overlay.
+        rows = []
+        for b in multi.get("books", []):
+            for ec in b.get("equity_curve", []):
+                rows.append({
+                    "book": b["name"],
+                    "date": ec["date"],
+                    "equity": ec["equity"],
+                })
+        port_curve = portfolio.get("portfolio_curve", [])
+        for row in port_curve:
+            rows.append({"book": "PORTFOLIO", "date": row["date"], "equity": row["equity"]})
+        if rows:
+            df = pd.DataFrame(rows)
+            df["date"] = pd.to_datetime(df["date"])
+            chart = (
+                alt.Chart(df)
+                .mark_line()
+                .encode(
+                    x="date:T",
+                    y=alt.Y("equity:Q", title="Equity"),
+                    color=alt.Color("book:N", title="Book"),
+                    strokeWidth=alt.condition(
+                        "datum.book == 'PORTFOLIO'",
+                        alt.value(3.0),
+                        alt.value(1.5),
+                    ),
+                    tooltip=["book", "date", "equity"],
+                )
+            )
+            st.altair_chart(chart, use_container_width=True)
+
+        st.subheader("Per-book summary")
+        summary_rows = [
+            {
+                "book": b["name"],
+                "instrument": instrument_label(b.get("instrument", {})),
+                **{k: v for k, v in b.get("summary", {}).items() if k != "scoring_mode"},
+            }
+            for b in multi.get("books", [])
+        ]
+        if summary_rows:
+            st.dataframe(pd.DataFrame(summary_rows), width="stretch", hide_index=True)
+
+        for b in multi.get("books", []):
+            with st.expander(f"{b['name']} — {len(b.get('trades', []))} trades"):
+                trades = b.get("trades", [])
+                if not trades:
+                    st.write("No trades.")
+                    continue
+                st.dataframe(pd.DataFrame(trades), width="stretch", hide_index=True)
