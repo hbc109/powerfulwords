@@ -33,10 +33,21 @@ def load_df(query: str, params: tuple = ()) -> pd.DataFrame:
 
 def load_scores() -> pd.DataFrame:
     return load_df("""
-        SELECT score_date, commodity, topic, narrative_score,
+        SELECT score_date, commodity, theme, topic, narrative_score,
                official_confirmation_score, news_breadth_score,
-               chatter_score, crowding_score
+               chatter_score, crowding_score,
+               breadth, persistence, source_divergence
         FROM daily_narrative_scores
+        ORDER BY score_date DESC, ABS(narrative_score) DESC
+    """)
+
+
+def load_theme_scores() -> pd.DataFrame:
+    return load_df("""
+        SELECT score_date, commodity, theme, narrative_score,
+               raw_score, event_count, subtheme_count,
+               breadth, persistence, source_divergence
+        FROM daily_theme_scores
         ORDER BY score_date DESC, ABS(narrative_score) DESC
     """)
 
@@ -101,6 +112,7 @@ if not DB_PATH.exists():
     st.stop()
 
 scores = load_scores()
+theme_scores = load_theme_scores()
 events = load_events()
 
 if scores.empty:
@@ -108,6 +120,8 @@ if scores.empty:
     st.stop()
 
 scores["score_date"] = scores["score_date"].astype(str)
+if not theme_scores.empty:
+    theme_scores["score_date"] = theme_scores["score_date"].astype(str)
 if not events.empty:
     events["event_date"] = events["event_time"].astype(str).str[:10]
 else:
@@ -149,7 +163,38 @@ st.info(f"Main Sources: {main_sources}")
 tab1, tab2, tab3 = st.tabs(["Overview", "Research", "Backtest"])
 
 with tab1:
-    st.subheader("Scores")
+    day_themes = (
+        theme_scores[theme_scores["score_date"] == selected_date].copy()
+        if not theme_scores.empty
+        else pd.DataFrame()
+    )
+    st.subheader("Themes")
+    if day_themes.empty:
+        st.write("No theme rollup for selected date.")
+    else:
+        day_themes = day_themes.sort_values("narrative_score", key=lambda s: s.abs(), ascending=False)
+        show_themes = day_themes.copy()
+        show_themes["theme"] = show_themes["theme"].apply(topic_label)
+        show_themes["bias"] = show_themes["narrative_score"].apply(bias_label)
+        st.dataframe(
+            show_themes[
+                [
+                    "theme",
+                    "narrative_score",
+                    "bias",
+                    "event_count",
+                    "subtheme_count",
+                    "breadth",
+                    "persistence",
+                    "source_divergence",
+                ]
+            ],
+            width="stretch",
+            hide_index=True,
+        )
+        st.bar_chart(show_themes[["theme", "narrative_score"]].set_index("theme"))
+
+    st.subheader("Subthemes")
     if day_scores.empty:
         st.write("No scores found for selected date.")
     else:

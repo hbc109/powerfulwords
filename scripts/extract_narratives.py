@@ -62,12 +62,12 @@ def insert_event(conn, evt):
     conn.execute(
         '''
         INSERT OR REPLACE INTO narrative_events (
-            event_id, document_id, chunk_id, event_time, commodity, topic, direction,
+            event_id, document_id, chunk_id, event_time, commodity, theme, topic, direction,
             source_bucket, source_name, credibility, novelty, breadth, persistence,
             crowding, price_confirmation, verification_status, horizon, rumor_flag,
             confidence, entities_json, regions_json, asset_candidates_json,
             evidence_text, evidence_spans_json, notes
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''',
         (
             evt.event_id,
@@ -75,6 +75,7 @@ def insert_event(conn, evt):
             evt.chunk_id,
             evt.event_time.isoformat(),
             evt.commodity,
+            evt.theme,
             evt.topic,
             evt.direction,
             evt.source_bucket,

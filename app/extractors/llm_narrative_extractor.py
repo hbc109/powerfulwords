@@ -9,6 +9,7 @@ from typing import Optional
 from app.extractors.llm_providers import call_provider, has_credentials
 from app.models.narrative import NarrativeEvent
 from app.models.narrative_extraction import NarrativeExtraction
+from app.scoring.theme_rollup import build_subtheme_to_theme, load_hierarchy
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 LLM_CONFIG_PATH = BASE_DIR / 'app' / 'config' / 'llm_config.json'
@@ -88,10 +89,14 @@ def convert_extraction_to_event(document: dict, chunk: dict, ext: NarrativeExtra
     event_time = derive_event_time(document.get('published_at'))
     if event_time is None:
         return None
+    hierarchy = load_hierarchy()
+    sub_to_theme = build_subtheme_to_theme(hierarchy)
+    fallback_theme = hierarchy.get('fallback_theme', 'other')
     return NarrativeEvent(
         event_id=make_event_id(document['document_id'], chunk['chunk_id'], ext.topic),
         event_time=event_time,
         commodity='crude_oil',
+        theme=sub_to_theme.get(ext.topic, fallback_theme),
         topic=ext.topic,
         direction=ext.direction,
         source_bucket=document['source_bucket'],

@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS narrative_events (
     chunk_id TEXT REFERENCES chunks(chunk_id),
     event_time TIMESTAMP NOT NULL,
     commodity TEXT NOT NULL,
+    theme TEXT,
     topic TEXT NOT NULL,
     direction TEXT NOT NULL,
     source_bucket TEXT NOT NULL,
@@ -72,6 +73,7 @@ CREATE TABLE IF NOT EXISTS narrative_events (
 CREATE TABLE IF NOT EXISTS daily_narrative_scores (
     score_date DATE NOT NULL,
     commodity TEXT NOT NULL,
+    theme TEXT,
     topic TEXT NOT NULL,
     narrative_score REAL NOT NULL,
     raw_score REAL,
@@ -84,6 +86,21 @@ CREATE TABLE IF NOT EXISTS daily_narrative_scores (
     chatter_score REAL,
     crowding_score REAL,
     PRIMARY KEY (score_date, commodity, topic)
+);
+
+CREATE TABLE IF NOT EXISTS daily_theme_scores (
+    score_date DATE NOT NULL,
+    commodity TEXT NOT NULL,
+    theme TEXT NOT NULL,
+    narrative_score REAL NOT NULL,
+    raw_score REAL,
+    event_count INTEGER,
+    subtheme_count INTEGER,
+    breadth REAL,
+    persistence REAL,
+    source_divergence REAL,
+    top_subthemes_json TEXT,
+    PRIMARY KEY (score_date, commodity, theme)
 );
 
 CREATE TABLE IF NOT EXISTS market_prices (

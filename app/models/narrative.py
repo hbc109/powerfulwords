@@ -6,6 +6,7 @@ class NarrativeEvent(BaseModel):
     event_id: str
     event_time: datetime
     commodity: str = "crude_oil"
+    theme: Optional[str] = None
     topic: str
     direction: str
     source_bucket: str

@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Iterable, List
 
 from app.models.narrative import NarrativeEvent
+from app.scoring.theme_rollup import build_subtheme_to_theme, load_hierarchy
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 RULES_PATH = BASE_DIR / "app" / "config" / "oil_topic_rules.json"
@@ -132,6 +133,10 @@ def extract_events_from_chunk(*, document: dict, chunk: dict, rules: dict) -> li
     entities = infer_entities(text, rules)
     credibility = estimate_credibility(document["source_bucket"], document["source_name"], rumor_flag)
 
+    hierarchy = load_hierarchy()
+    sub_to_theme = build_subtheme_to_theme(hierarchy)
+    fallback_theme = hierarchy.get("fallback_theme", "other")
+
     events: list[NarrativeEvent] = []
     for topic, novelty, default_direction in matches:
         direction = infer_direction(text, rules, default_direction)
@@ -139,6 +144,7 @@ def extract_events_from_chunk(*, document: dict, chunk: dict, rules: dict) -> li
             event_id=make_event_id(document["document_id"], chunk["chunk_id"], topic),
             event_time=event_time,
             commodity="crude_oil",
+            theme=sub_to_theme.get(topic, fallback_theme),
             topic=topic,
             direction=direction,
             source_bucket=document["source_bucket"],

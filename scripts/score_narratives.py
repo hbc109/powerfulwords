@@ -12,6 +12,11 @@ from pathlib import Path
 
 from app.db.database import get_connection
 from app.scoring.daily_score import load_scoring_config, aggregate_daily_scores
+from app.scoring.theme_rollup import (
+    aggregate_theme_scores,
+    build_subtheme_to_theme,
+    load_hierarchy,
+)
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 
@@ -61,14 +66,15 @@ def upsert_daily_scores(conn, scores):
         conn.execute(
             '''
             INSERT OR REPLACE INTO daily_narrative_scores (
-                score_date, commodity, topic, narrative_score, raw_score, event_count,
+                score_date, commodity, theme, topic, narrative_score, raw_score, event_count,
                 breadth, persistence, source_divergence,
                 official_confirmation_score, news_breadth_score, chatter_score, crowding_score
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''',
             (
                 s["score_date"],
                 s["commodity"],
+                s.get("theme"),
                 s["topic"],
                 s["narrative_score"],
                 s.get("raw_score"),
@@ -84,24 +90,66 @@ def upsert_daily_scores(conn, scores):
         )
 
 
+def upsert_daily_theme_scores(conn, theme_scores):
+    for s in theme_scores:
+        conn.execute(
+            '''
+            INSERT OR REPLACE INTO daily_theme_scores (
+                score_date, commodity, theme, narrative_score, raw_score, event_count,
+                subtheme_count, breadth, persistence, source_divergence, top_subthemes_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''',
+            (
+                s["score_date"],
+                s["commodity"],
+                s["theme"],
+                s["narrative_score"],
+                s.get("raw_score"),
+                s.get("event_count"),
+                s.get("subtheme_count"),
+                s.get("breadth"),
+                s.get("persistence"),
+                s.get("source_divergence"),
+                json.dumps(s.get("top_subthemes", []), ensure_ascii=False),
+            ),
+        )
+
+
 def main():
     conn = get_connection()
     cfg = load_scoring_config()
+    hierarchy = load_hierarchy()
+    sub_to_theme = build_subtheme_to_theme(hierarchy)
+    fallback_theme = hierarchy.get("fallback_theme", "other")
+
     events = fetch_events(conn)
     scores = aggregate_daily_scores(events, cfg)
+    for s in scores:
+        s["theme"] = sub_to_theme.get(s["topic"], fallback_theme)
+
+    theme_scores = aggregate_theme_scores(scores, hierarchy)
 
     out_dir = BASE_DIR / "data" / "processed" / "signals"
     out_dir.mkdir(parents=True, exist_ok=True)
+    theme_dir = BASE_DIR / "data" / "processed" / "signals" / "themes"
+    theme_dir.mkdir(parents=True, exist_ok=True)
 
     for s in scores:
         name = f'{s["score_date"]}_{s["commodity"]}_{s["topic"]}.json'
         (out_dir / name).write_text(json.dumps(s, ensure_ascii=False, indent=2), encoding="utf-8")
+    for s in theme_scores:
+        name = f'{s["score_date"]}_{s["commodity"]}_{s["theme"]}.json'
+        (theme_dir / name).write_text(json.dumps(s, ensure_ascii=False, indent=2), encoding="utf-8")
 
     upsert_daily_scores(conn, scores)
+    upsert_daily_theme_scores(conn, theme_scores)
     conn.commit()
     conn.close()
 
-    print(f"Scored {len(scores)} daily topic rows from {len(events)} events.")
+    print(
+        f"Scored {len(scores)} daily subtheme rows and {len(theme_scores)} theme rows "
+        f"from {len(events)} events."
+    )
 
 
 if __name__ == "__main__":
