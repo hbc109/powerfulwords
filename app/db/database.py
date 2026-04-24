@@ -13,6 +13,20 @@ def init_db() -> None:
     conn = get_connection()
     with open(INIT_SQL_PATH, "r", encoding="utf-8") as f:
         conn.executescript(f.read())
+    # Lightweight migration for additive score columns. SQLite ALTER TABLE
+    # only supports ADD COLUMN, and there is no IF NOT EXISTS on column adds,
+    # so probe via PRAGMA and add what's missing.
+    cur = conn.execute("PRAGMA table_info(daily_narrative_scores)")
+    existing_cols = {row[1] for row in cur.fetchall()}
+    for col, decl in [
+        ("raw_score", "REAL"),
+        ("event_count", "INTEGER"),
+        ("breadth", "REAL"),
+        ("persistence", "REAL"),
+        ("source_divergence", "REAL"),
+    ]:
+        if col not in existing_cols:
+            conn.execute(f"ALTER TABLE daily_narrative_scores ADD COLUMN {col} {decl}")
     conn.commit()
     conn.close()
 

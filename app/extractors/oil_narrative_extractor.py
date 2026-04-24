@@ -23,18 +23,22 @@ def _count_matches(text: str, terms: Iterable[str]) -> int:
     return sum(1 for t in terms if t.lower() in lowered)
 
 def infer_topic(text: str, rules: dict) -> tuple[str, float, str]:
+    matches = infer_all_topics(text, rules)
+    if not matches:
+        return "other", 0.25, "neutral"
+    return matches[0]
+
+
+def infer_all_topics(text: str, rules: dict) -> list[tuple[str, float, str]]:
     lowered = _lower(text)
     scores = []
     for topic, spec in rules["topic_rules"].items():
         score = sum(1 for kw in spec["keywords"] if kw.lower() in lowered)
         if score > 0:
-            scores.append((topic, score, spec["direction"]))
-    if not scores:
-        return "other", 0.25, "neutral"
+            novelty = min(1.0, 0.45 + score * 0.12)
+            scores.append((topic, novelty, spec["direction"]))
     scores.sort(key=lambda x: x[1], reverse=True)
-    topic, raw_score, default_direction = scores[0]
-    novelty = min(1.0, 0.45 + raw_score * 0.12)
-    return topic, novelty, default_direction
+    return scores
 
 def infer_direction(text: str, rules: dict, default_direction: str) -> str:
     bullish = _count_matches(text, rules["bullish_words"])
@@ -110,17 +114,17 @@ def make_event_id(document_id: str, chunk_id: str, topic: str) -> str:
     clean_topic = re.sub(r"[^a-z0-9_]+", "", topic.lower())
     return f"evt_{document_id}_{chunk_id.split('_')[-1]}_{clean_topic}"
 
-def extract_event_from_chunk(*, document: dict, chunk: dict, rules: dict) -> NarrativeEvent | None:
+def extract_events_from_chunk(*, document: dict, chunk: dict, rules: dict) -> list[NarrativeEvent]:
     text = chunk["text"].strip()
     if len(text) < 80:
-        return None
+        return []
     event_time = derive_event_time(document.get("published_at"))
     if event_time is None:
-        return None
-    topic, novelty, default_direction = infer_topic(text, rules)
-    if topic == "other":
-        return None
-    direction = infer_direction(text, rules, default_direction)
+        return []
+    matches = infer_all_topics(text, rules)
+    if not matches:
+        return []
+
     rumor_flag = infer_rumor_flag(text, rules, document["source_bucket"])
     verification_status = infer_verification_status(text, rules, document["source_bucket"], rumor_flag)
     horizon = infer_horizon(text, rules)
@@ -128,31 +132,40 @@ def extract_event_from_chunk(*, document: dict, chunk: dict, rules: dict) -> Nar
     entities = infer_entities(text, rules)
     credibility = estimate_credibility(document["source_bucket"], document["source_name"], rumor_flag)
 
-    return NarrativeEvent(
-        event_id=make_event_id(document["document_id"], chunk["chunk_id"], topic),
-        event_time=event_time,
-        commodity="crude_oil",
-        topic=topic,
-        direction=direction,
-        source_bucket=document["source_bucket"],
-        source_name=document["source_name"],
-        source_id=document.get("source_id"),
-        document_id=document["document_id"],
-        chunk_id=chunk["chunk_id"],
-        credibility=credibility,
-        novelty=novelty,
-        breadth=None,
-        persistence=None,
-        crowding=None,
-        price_confirmation=None,
-        verification_status=verification_status,
-        horizon=horizon,
-        rumor_flag=rumor_flag,
-        confidence=min(0.95, round((credibility * 0.55 + novelty * 0.45), 4)),
-        entities=entities,
-        regions=regions,
-        asset_candidates=["WTI", "Brent", "XLE"],
-        evidence_text=text[:1200],
-        evidence_spans=[],
-        notes=f"baseline_rule_extractor topic={topic}"
-    )
+    events: list[NarrativeEvent] = []
+    for topic, novelty, default_direction in matches:
+        direction = infer_direction(text, rules, default_direction)
+        events.append(NarrativeEvent(
+            event_id=make_event_id(document["document_id"], chunk["chunk_id"], topic),
+            event_time=event_time,
+            commodity="crude_oil",
+            topic=topic,
+            direction=direction,
+            source_bucket=document["source_bucket"],
+            source_name=document["source_name"],
+            source_id=document.get("source_id"),
+            document_id=document["document_id"],
+            chunk_id=chunk["chunk_id"],
+            credibility=credibility,
+            novelty=novelty,
+            breadth=None,
+            persistence=None,
+            crowding=None,
+            price_confirmation=None,
+            verification_status=verification_status,
+            horizon=horizon,
+            rumor_flag=rumor_flag,
+            confidence=min(0.95, round((credibility * 0.55 + novelty * 0.45), 4)),
+            entities=entities,
+            regions=regions,
+            asset_candidates=["WTI", "Brent", "XLE"],
+            evidence_text=text[:1200],
+            evidence_spans=[],
+            notes=f"baseline_rule_extractor topic={topic}",
+        ))
+    return events
+
+
+def extract_event_from_chunk(*, document: dict, chunk: dict, rules: dict) -> NarrativeEvent | None:
+    events = extract_events_from_chunk(document=document, chunk=chunk, rules=rules)
+    return events[0] if events else None

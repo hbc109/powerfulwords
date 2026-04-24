@@ -13,7 +13,7 @@ import os
 from pathlib import Path
 
 from app.db.database import get_connection
-from app.extractors.oil_narrative_extractor import load_rules, extract_event_from_chunk
+from app.extractors.oil_narrative_extractor import load_rules, extract_events_from_chunk
 from app.extractors.llm_narrative_extractor import extract_event_from_chunk_llm, load_llm_config
 
 BASE_DIR = Path(__file__).resolve().parents[1]
@@ -105,11 +105,12 @@ def choose_mode(requested_mode: str) -> str:
     return 'rule'
 
 
-def extract_with_mode(document: dict, chunk: dict, mode: str, rules: dict):
+def extract_with_mode(document: dict, chunk: dict, mode: str, rules: dict) -> list:
     if mode == 'rule':
-        return extract_event_from_chunk(document=document, chunk=chunk, rules=rules)
+        return extract_events_from_chunk(document=document, chunk=chunk, rules=rules)
     if mode == 'llm':
-        return extract_event_from_chunk_llm(document=document, chunk=chunk)
+        evt = extract_event_from_chunk_llm(document=document, chunk=chunk)
+        return [evt] if evt is not None else []
     raise ValueError(f'Unsupported mode: {mode}')
 
 
@@ -149,14 +150,14 @@ def main() -> None:
             'text': row['text'],
         }
 
-        evt = None
+        events = []
         used_mode = selected_mode
 
         try:
-            evt = extract_with_mode(document, chunk, selected_mode, rules)
+            events = extract_with_mode(document, chunk, selected_mode, rules)
         except Exception as e:
             if selected_mode == 'llm' and allow_fallback:
-                evt = extract_event_from_chunk(document=document, chunk=chunk, rules=rules)
+                events = extract_events_from_chunk(document=document, chunk=chunk, rules=rules)
                 used_mode = 'rule'
                 fallback_count += 1
                 print(f"[FALLBACK] {chunk['chunk_id']} -> rule extractor ({e})")
@@ -165,20 +166,21 @@ def main() -> None:
                 skipped += 1
                 continue
 
-        if evt is None:
+        if not events:
             skipped += 1
             continue
 
-        insert_event(conn, evt)
-        (out_dir / f'{evt.event_id}.json').write_text(
-            json.dumps(evt.model_dump(mode='json'), ensure_ascii=False, indent=2),
-            encoding='utf-8',
-        )
-        count += 1
-        if used_mode == 'llm':
-            llm_count += 1
-        else:
-            rule_count += 1
+        for evt in events:
+            insert_event(conn, evt)
+            (out_dir / f'{evt.event_id}.json').write_text(
+                json.dumps(evt.model_dump(mode='json'), ensure_ascii=False, indent=2),
+                encoding='utf-8',
+            )
+            count += 1
+            if used_mode == 'llm':
+                llm_count += 1
+            else:
+                rule_count += 1
 
     conn.commit()
     conn.close()

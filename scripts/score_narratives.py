@@ -52,15 +52,21 @@ def upsert_daily_scores(conn, scores):
         conn.execute(
             '''
             INSERT OR REPLACE INTO daily_narrative_scores (
-                score_date, commodity, topic, narrative_score, official_confirmation_score,
-                news_breadth_score, chatter_score, crowding_score
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                score_date, commodity, topic, narrative_score, raw_score, event_count,
+                breadth, persistence, source_divergence,
+                official_confirmation_score, news_breadth_score, chatter_score, crowding_score
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''',
             (
                 s["score_date"],
                 s["commodity"],
                 s["topic"],
                 s["narrative_score"],
+                s.get("raw_score"),
+                s.get("event_count"),
+                s.get("breadth"),
+                s.get("persistence"),
+                s.get("source_divergence"),
                 s["official_confirmation_score"],
                 s["news_breadth_score"],
                 s["chatter_score"],

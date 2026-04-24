@@ -26,11 +26,27 @@ def score_to_target_position(score: float, cfg: dict) -> float:
 
 
 def aggregate_score_by_date(score_rows: List[dict]) -> List[dict]:
-    by_date: Dict[str, float] = {}
+    """Sum topic scores per day and keep the per-topic breakdown alongside.
+
+    Each output row includes:
+      - aggregate_score: sum of narrative_score across topics that day
+      - topic_breakdown: list of (topic, narrative_score), sorted by |score|
+    """
+    by_date_total: Dict[str, float] = {}
+    by_date_topics: Dict[str, list] = {}
     for row in score_rows:
         d = row["score_date"]
-        by_date[d] = by_date.get(d, 0.0) + float(row["narrative_score"])
-    out = [{"score_date": d, "aggregate_score": s} for d, s in sorted(by_date.items())]
+        score = float(row["narrative_score"])
+        by_date_total[d] = by_date_total.get(d, 0.0) + score
+        by_date_topics.setdefault(d, []).append((row["topic"], score))
+    out = []
+    for d in sorted(by_date_total):
+        topics = sorted(by_date_topics[d], key=lambda x: abs(x[1]), reverse=True)
+        out.append({
+            "score_date": d,
+            "aggregate_score": by_date_total[d],
+            "topic_breakdown": topics,
+        })
     return out
 
 
@@ -46,7 +62,9 @@ def ordered_dates(price_rows: List[dict]) -> List[str]:
 
 
 def run_daily_backtest(score_rows: List[dict], price_rows: List[dict], cfg: dict) -> dict:
-    score_by_date = {r["score_date"]: float(r["aggregate_score"]) for r in aggregate_score_by_date(score_rows)}
+    aggregated = aggregate_score_by_date(score_rows)
+    score_by_date = {r["score_date"]: float(r["aggregate_score"]) for r in aggregated}
+    topics_by_date = {r["score_date"]: r["topic_breakdown"] for r in aggregated}
     close_map = build_close_map(price_rows)
     dates = ordered_dates(price_rows)
 
@@ -73,6 +91,7 @@ def run_daily_backtest(score_rows: List[dict], price_rows: List[dict], cfg: dict
         capital = capital + pnl - cost
 
         if turnover > 0:
+            top_topics = topics_by_date.get(d, [])[:3]
             trades.append(
                 {
                     "date": d,
@@ -82,6 +101,9 @@ def run_daily_backtest(score_rows: List[dict], price_rows: List[dict], cfg: dict
                     "turnover": turnover,
                     "transaction_cost": round(cost, 6),
                     "close": close_px,
+                    "top_topics": [
+                        {"topic": t, "score": round(s, 6)} for t, s in top_topics
+                    ],
                 }
             )
 
