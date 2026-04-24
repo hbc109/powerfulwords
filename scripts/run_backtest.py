@@ -16,7 +16,7 @@ from app.strategy.backtest_engine import load_strategy_config, run_daily_backtes
 BASE_DIR = Path(__file__).resolve().parents[1]
 
 
-def fetch_scores(conn, commodity: str = "crude_oil"):
+def fetch_subtheme_scores(conn, commodity: str = "crude_oil"):
     cur = conn.execute(
         '''
         SELECT score_date, commodity, topic, narrative_score
@@ -27,12 +27,23 @@ def fetch_scores(conn, commodity: str = "crude_oil"):
         (commodity,),
     )
     return [
-        {
-            "score_date": r[0],
-            "commodity": r[1],
-            "topic": r[2],
-            "narrative_score": float(r[3]),
-        }
+        {"score_date": r[0], "commodity": r[1], "topic": r[2], "narrative_score": float(r[3])}
+        for r in cur.fetchall()
+    ]
+
+
+def fetch_theme_scores(conn, commodity: str = "crude_oil"):
+    cur = conn.execute(
+        '''
+        SELECT score_date, commodity, theme, narrative_score
+        FROM daily_theme_scores
+        WHERE commodity = ?
+        ORDER BY score_date, theme
+        ''',
+        (commodity,),
+    )
+    return [
+        {"score_date": r[0], "commodity": r[1], "theme": r[2], "narrative_score": float(r[3])}
         for r in cur.fetchall()
     ]
 
@@ -64,8 +75,12 @@ def fetch_prices(conn, symbol: str):
 
 def main():
     cfg = load_strategy_config()
+    use_themes = bool((cfg.get("scoring") or {}).get("use_themes", False))
     conn = get_connection()
-    scores = fetch_scores(conn, commodity=cfg["commodity"])
+    if use_themes:
+        scores = fetch_theme_scores(conn, commodity=cfg["commodity"])
+    else:
+        scores = fetch_subtheme_scores(conn, commodity=cfg["commodity"])
     prices = fetch_prices(conn, symbol=cfg["symbol"])
     conn.close()
 

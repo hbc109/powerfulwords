@@ -25,29 +25,80 @@ def score_to_target_position(score: float, cfg: dict) -> float:
     return 0.0
 
 
-def aggregate_score_by_date(score_rows: List[dict]) -> List[dict]:
-    """Sum topic scores per day and keep the per-topic breakdown alongside.
+def aggregate_score_by_date(
+    score_rows: List[dict],
+    weights: Dict[str, float] | None = None,
+    group_field: str = "topic",
+) -> List[dict]:
+    """Sum (optionally weighted) per-group scores per day, keeping the breakdown.
 
     Each output row includes:
-      - aggregate_score: sum of narrative_score across topics that day
-      - topic_breakdown: list of (topic, narrative_score), sorted by |score|
+      - aggregate_score: sum of (weight * narrative_score) across groups that day
+      - breakdown: list of (group, weighted_score), sorted by |weighted_score|
+      - raw_breakdown: list of (group, raw_score) preserving the un-weighted view
     """
+    weights = weights or {}
     by_date_total: Dict[str, float] = {}
-    by_date_topics: Dict[str, list] = {}
+    by_date_breakdown: Dict[str, list] = {}
+    by_date_raw: Dict[str, list] = {}
     for row in score_rows:
         d = row["score_date"]
-        score = float(row["narrative_score"])
-        by_date_total[d] = by_date_total.get(d, 0.0) + score
-        by_date_topics.setdefault(d, []).append((row["topic"], score))
+        group = row[group_field]
+        raw = float(row["narrative_score"])
+        w = float(weights.get(group, 1.0))
+        weighted = w * raw
+        by_date_total[d] = by_date_total.get(d, 0.0) + weighted
+        by_date_breakdown.setdefault(d, []).append((group, weighted))
+        by_date_raw.setdefault(d, []).append((group, raw))
     out = []
     for d in sorted(by_date_total):
-        topics = sorted(by_date_topics[d], key=lambda x: abs(x[1]), reverse=True)
+        breakdown = sorted(by_date_breakdown[d], key=lambda x: abs(x[1]), reverse=True)
+        raw = sorted(by_date_raw[d], key=lambda x: abs(x[1]), reverse=True)
         out.append({
             "score_date": d,
             "aggregate_score": by_date_total[d],
-            "topic_breakdown": topics,
+            "breakdown": breakdown,
+            "raw_breakdown": raw,
         })
     return out
+
+
+def apply_theme_vetoes(
+    target_position: float,
+    theme_scores_today: Dict[str, float],
+    vetoes: List[dict],
+) -> tuple[float, list]:
+    """Force position to 0 when any veto blocks the proposed direction.
+
+    Returns (adjusted_position, list_of_veto_reasons_triggered).
+    Veto schema: {if_theme, is: above|below, value, blocks: long|short, note?}
+    """
+    if not vetoes or target_position == 0:
+        return target_position, []
+    triggered = []
+    for v in vetoes:
+        theme = v.get("if_theme")
+        score = theme_scores_today.get(theme)
+        if score is None:
+            continue
+        op = v.get("is", "above")
+        threshold = float(v.get("value", 0))
+        cond_met = (op == "above" and score >= threshold) or (op == "below" and score <= threshold)
+        if not cond_met:
+            continue
+        blocks = v.get("blocks", "long")
+        if (blocks == "long" and target_position > 0) or (blocks == "short" and target_position < 0):
+            triggered.append({
+                "if_theme": theme,
+                "theme_score": round(score, 6),
+                "is": op,
+                "value": threshold,
+                "blocks": blocks,
+                "note": v.get("note"),
+            })
+    if triggered:
+        return 0.0, triggered
+    return target_position, []
 
 
 def build_close_map(price_rows: List[dict]) -> Dict[str, float]:
@@ -62,9 +113,17 @@ def ordered_dates(price_rows: List[dict]) -> List[str]:
 
 
 def run_daily_backtest(score_rows: List[dict], price_rows: List[dict], cfg: dict) -> dict:
-    aggregated = aggregate_score_by_date(score_rows)
+    scoring_cfg = cfg.get("scoring") or {}
+    use_themes = bool(scoring_cfg.get("use_themes", False))
+    group_field = "theme" if use_themes else "topic"
+    weights = scoring_cfg.get("theme_weights") if use_themes else None
+    vetoes = scoring_cfg.get("theme_vetoes", []) if use_themes else []
+
+    aggregated = aggregate_score_by_date(score_rows, weights=weights, group_field=group_field)
     score_by_date = {r["score_date"]: float(r["aggregate_score"]) for r in aggregated}
-    topics_by_date = {r["score_date"]: r["topic_breakdown"] for r in aggregated}
+    breakdown_by_date = {r["score_date"]: r["breakdown"] for r in aggregated}
+    raw_breakdown_by_date = {r["score_date"]: r["raw_breakdown"] for r in aggregated}
+
     close_map = build_close_map(price_rows)
     dates = ordered_dates(price_rows)
 
@@ -75,11 +134,23 @@ def run_daily_backtest(score_rows: List[dict], price_rows: List[dict], cfg: dict
     prev_position = 0.0
     equity_curve = []
     trades = []
+    vetoed_count = 0
 
     for d in dates:
         close_px = close_map[d]
         score = score_by_date.get(d, 0.0)
-        target_position = score_to_target_position(score, cfg)
+        proposed_position = score_to_target_position(score, cfg)
+
+        veto_reasons = []
+        if use_themes:
+            todays_theme_scores = dict(raw_breakdown_by_date.get(d, []))
+            target_position, veto_reasons = apply_theme_vetoes(
+                proposed_position, todays_theme_scores, vetoes
+            )
+        else:
+            target_position = proposed_position
+        if veto_reasons:
+            vetoed_count += 1
 
         pnl = 0.0
         if prev_close is not None and prev_close != 0:
@@ -91,21 +162,23 @@ def run_daily_backtest(score_rows: List[dict], price_rows: List[dict], cfg: dict
         capital = capital + pnl - cost
 
         if turnover > 0:
-            top_topics = topics_by_date.get(d, [])[:3]
-            trades.append(
-                {
-                    "date": d,
-                    "score": score,
-                    "prev_position": prev_position,
-                    "target_position": target_position,
-                    "turnover": turnover,
-                    "transaction_cost": round(cost, 6),
-                    "close": close_px,
-                    "top_topics": [
-                        {"topic": t, "score": round(s, 6)} for t, s in top_topics
-                    ],
-                }
-            )
+            top = breakdown_by_date.get(d, [])[:3]
+            trade = {
+                "date": d,
+                "score": score,
+                "prev_position": prev_position,
+                "target_position": target_position,
+                "proposed_position": proposed_position,
+                "turnover": turnover,
+                "transaction_cost": round(cost, 6),
+                "close": close_px,
+                ("top_themes" if use_themes else "top_topics"): [
+                    {group_field: g, "score": round(s, 6)} for g, s in top
+                ],
+            }
+            if veto_reasons:
+                trade["vetoes"] = veto_reasons
+            trades.append(trade)
 
         equity_curve.append(
             {
@@ -137,7 +210,9 @@ def run_daily_backtest(score_rows: List[dict], price_rows: List[dict], cfg: dict
         "total_return": round(total_return, 6),
         "num_days": len(equity_curve),
         "num_trades": len(trades),
+        "num_vetoed_days": vetoed_count,
         "positive_day_rate": round(sum(hit_days) / len(hit_days), 6) if hit_days else None,
+        "scoring_mode": "themes" if use_themes else "topics",
     }
 
     return {

@@ -11,5 +11,32 @@
   "hold_if_same_sign": true,
   "flat_if_neutral": true,
   "one_way_cost_bps": 5.0,
-  "initial_capital": 100000.0
+  "initial_capital": 100000.0,
+  "scoring": {
+    "use_themes": true,
+    "theme_weights": {
+      "supply": 1.0,
+      "demand": 1.0,
+      "inventories": 0.8,
+      "macro": 0.6,
+      "geopolitics": 1.2,
+      "other": 0.5
+    },
+    "theme_vetoes": [
+      {
+        "if_theme": "macro",
+        "is": "below",
+        "value": -1.0,
+        "blocks": "long",
+        "note": "Don't go long oil when macro is strongly bearish (recession / dollar-strength regime)."
+      },
+      {
+        "if_theme": "macro",
+        "is": "above",
+        "value": 1.0,
+        "blocks": "short",
+        "note": "Don't go short when macro is strongly bullish."
+      }
+    ]
+  }
 }
