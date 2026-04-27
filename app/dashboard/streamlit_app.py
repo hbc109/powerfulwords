@@ -224,8 +224,79 @@ tab_recs, tab_upload, tab1, tab_trends, tab2, tab3, tab_multi = st.tabs(
     ["Recommendations", "Upload", "Overview", "Trends", "Research", "Backtest", "Multi-book"]
 )
 
+def _book_history_score(book_cfg, theme_scores_df, score_date_str):
+    """Re-run aggregation across history to get this book's daily scores
+    so we can compute a rolling z-score for context."""
+    if theme_scores_df.empty:
+        return None, None
+    from app.strategy.backtest_engine import aggregate_score_by_date
+    weights = (book_cfg.get("scoring") or {}).get("theme_weights")
+    rows = [
+        {"score_date": str(r["score_date"]), "theme": r["theme"],
+         "narrative_score": float(r["narrative_score"])}
+        for _, r in theme_scores_df.iterrows()
+    ]
+    agg = aggregate_score_by_date(rows, weights=weights, group_field="theme")
+    if not agg:
+        return None, None
+    df = pd.DataFrame(agg)
+    df = df.sort_values("score_date")
+    today_val = df.loc[df["score_date"] == score_date_str, "aggregate_score"]
+    if today_val.empty:
+        return None, None
+    today_val = float(today_val.iloc[0])
+    history = df[df["score_date"] < score_date_str]["aggregate_score"].tail(30)
+    if len(history) < 5:
+        return today_val, None  # not enough history for a meaningful z
+    mean, std = history.mean(), history.std()
+    if std == 0:
+        return today_val, None
+    return today_val, (today_val - mean) / std
+
+
 with tab_recs:
     st.subheader(f"Recommendations for {selected_date}")
+
+    with st.expander("📖 How to read these scores", expanded=False):
+        st.markdown(f"""
+**Direction** — what the book wants to do today: `LONG`, `SHORT`, or `FLAT`.
+
+**Position size** — `+2.0` strong, `+1.0` base, `0.0` flat. Same scale on the short side.
+
+**Weighted score** — sum of (theme score × this book's theme weight) for today.
+This is what the entry thresholds compare against:
+
+| Threshold | Position | Meaning |
+|---|---|---|
+| ≥ {_THRESHOLDS['strong_long']:+.2f} | `+2.0` strong long | high-conviction long |
+| ≥ {_THRESHOLDS['long']:+.2f} | `+1.0` base long | mild long |
+| between | `0.0` flat | nothing decisive |
+| ≤ {_THRESHOLDS['short']:+.2f} | `−1.0` base short | mild short |
+| ≤ {_THRESHOLDS['strong_short']:+.2f} | `−2.0` strong short | high-conviction short |
+
+**Z-score (σ)** — today's weighted score expressed as standard deviations above /
+below this book's recent (≤30-day) mean. `+0σ` = average day; `+2σ` =
+unusually bullish; `+3σ` = extreme. Z is a better gauge than the raw weighted
+score when raw values balloon (a +60 raw is very different on a quiet day vs
+in the middle of a multi-week conflict).
+
+**Theme drivers** — the three themes contributing the most to the weighted
+score for this book. Each book applies its own weights so the same theme can
+contribute differently across books (e.g. the spread book weights geopolitics
+1.5× and demand only 0.3×).
+
+**Vetoes** — even when the score says go, the strategy can refuse. The default
+veto rules say: don't go long oil while macro is strongly bearish (≤ −1.0)
+and don't go short while macro is strongly bullish (≥ +1.0). These guard
+against trading into an obviously hostile regime. Edit them in
+`app/config/multi_strategy_config.json`.
+
+**Why books differ** — each of the {len(load_multi_cfg().get('books', []))} books has
+its own theme weights, thresholds, and veto rules. A WTI book biased to be
+defensive against macro can flat-line on a day the same data leaves Brent or
+the Brent-WTI spread strongly long.
+""")
+
     if theme_scores.empty:
         st.write("No theme scores yet. Run scripts/score_narratives.py.")
     else:
@@ -233,6 +304,9 @@ with tab_recs:
         if not recs:
             st.write("No theme rows for the selected date, or no books configured.")
         else:
+            multi_cfg_for_z = load_multi_cfg() or {"books": []}
+            book_cfg_by_name = {b["name"]: b for b in multi_cfg_for_z.get("books", [])}
+
             cols = st.columns(len(recs))
             for col, r in zip(cols, recs):
                 with col:
@@ -244,7 +318,18 @@ with tab_recs:
                         unsafe_allow_html=True,
                     )
                     st.metric("Direction", r["direction"], delta=f"{r['target_position']:+.1f}")
-                    st.write(f"Weighted score: **{r['weighted_score']:+.3f}**")
+
+                    # Raw weighted score + rolling z-score for context.
+                    book_cfg = book_cfg_by_name.get(r["book"])
+                    z_str = ""
+                    if book_cfg is not None:
+                        _, z = _book_history_score(book_cfg, theme_scores, selected_date)
+                        if z is not None:
+                            z_str = f"  ({z:+.2f}σ vs 30d)"
+                        else:
+                            z_str = "  (n/a — <5d history)"
+                    st.write(f"Weighted score: **{r['weighted_score']:+.3f}**{z_str}")
+
                     if r["proposed_position"] != r["target_position"]:
                         st.warning(
                             f"Vetoed (proposed {r['proposed_position']:+.1f} → forced flat)"
