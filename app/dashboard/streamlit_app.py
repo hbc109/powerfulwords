@@ -305,7 +305,19 @@ with tab_upload:
             picked_idx = labels.index(picked)
             _, sel_bucket, sel_source_id, sel_source_name = sources[picked_idx]
         with col_b:
-            picked_date = st.date_input("Report date", value=_date.today())
+            picked_date = st.date_input(
+                "Report publication date  ⚠ set this to when the report was *written*, not today",
+                value=None,
+                min_value=_date(2020, 1, 1),
+                max_value=_date.today(),
+            )
+
+        st.caption(
+            "📅 The date you pick becomes `published_at` in the DB and drives "
+            "which day the narrative scores into. A Monday-morning upload of "
+            "last Wednesday's GS report should still be dated **Wednesday** "
+            "or its theme contribution will land on Monday."
+        )
 
         title_hint = st.text_input(
             "Short title / slug (optional — used in the filename)",
@@ -323,7 +335,13 @@ with tab_upload:
             value=True,
         )
 
-        save_clicked = st.button("Save to inbox", type="primary", disabled=not uploaded)
+        if uploaded and picked_date is None:
+            st.warning("Pick a publication date before saving.")
+        save_clicked = st.button(
+            "Save to inbox",
+            type="primary",
+            disabled=not uploaded or picked_date is None,
+        )
 
         def _slugify(s: str) -> str:
             s = (s or "").strip().lower().replace(" ", "_")
