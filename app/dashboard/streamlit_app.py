@@ -285,16 +285,82 @@ score for this book. Each book applies its own weights so the same theme can
 contribute differently across books (e.g. the spread book weights geopolitics
 1.5× and demand only 0.3×).
 
-**Vetoes** — even when the score says go, the strategy can refuse. The default
-veto rules say: don't go long oil while macro is strongly bearish (≤ −1.0)
-and don't go short while macro is strongly bullish (≥ +1.0). These guard
-against trading into an obviously hostile regime. Edit them in
-`app/config/multi_strategy_config.json`.
+### Vetoes — when the strategy refuses to enter
 
-**Why books differ** — each of the {len(load_multi_cfg().get('books', []))} books has
-its own theme weights, thresholds, and veto rules. A WTI book biased to be
-defensive against macro can flat-line on a day the same data leaves Brent or
-the Brent-WTI spread strongly long.
+A veto fires when a single theme score crosses its threshold. Multiple
+vetoes per book are evaluated independently — **any one** firing forces
+flat. They guard against trading into an obviously hostile regime even
+when the aggregate score looks decisive.
+
+The currently-configured vetoes per book:
+""")
+
+        # Build the per-book veto table directly from the live config so
+        # it always matches what the engine will do.
+        cfg = load_multi_cfg() or {"books": []}
+        veto_rows = []
+        for book in cfg.get("books", []):
+            vetoes = (book.get("scoring") or {}).get("theme_vetoes", []) or []
+            if not vetoes:
+                veto_rows.append({
+                    "book": book["name"],
+                    "if_theme": "—",
+                    "condition": "—",
+                    "blocks": "—",
+                    "rationale": "(no vetoes — book always trades on score)",
+                })
+                continue
+            for v in vetoes:
+                op = v.get("is", "above")
+                val = float(v.get("value", 0))
+                arrow = "≥" if op == "above" else "≤"
+                veto_rows.append({
+                    "book": book["name"],
+                    "if_theme": v.get("if_theme", "?"),
+                    "condition": f"{arrow} {val:+.1f}",
+                    "blocks": v.get("blocks", "?"),
+                    "rationale": v.get("note") or "",
+                })
+        st.dataframe(pd.DataFrame(veto_rows), width="stretch", hide_index=True)
+
+        st.markdown(f"""
+**Are vetoes mutual / symmetric?**  Yes — each veto is independent and any one
+firing flattens the position. Multiple themes (macro, geopolitics, inventories…)
+can all be set up to veto, in either direction (`blocks: long` or `blocks: short`).
+
+**Suggested veto set in this config:**
+- **Macro long-veto** (WTI): macro ≤ −1.0 → no longs. Don't trade into a
+  recession-fear / dollar-strength regime even with bullish supply news.
+- **Macro short-veto** (WTI): macro ≥ +1.0 → no shorts. Mirror image.
+- **Macro veto on Brent**: same idea but threshold widened to ±2.0 — Brent is
+  more globally driven and less rate-sensitive than WTI, so only block on
+  *extreme* macro readings.
+- **Geopolitics symmetric veto** (WTI, Brent, Brent-WTI spread): geopolitics
+  ≥ +1.5 → no shorts; ≤ −1.5 → no longs. Don't fade a strong geopolitical
+  risk premium build, and don't chase one as it collapses (e.g. on a
+  ceasefire or sanctions easing).
+- **Inventories veto** (gasoline + diesel cracks only): inventories ≥ +1.0
+  → no long crack; ≤ −1.0 → no short crack. The crack lives or dies on
+  product–crude balance, so a clear product build/draw should override the
+  underlying narrative tilt.
+
+**Other vetoes worth considering** (not currently active):
+- **Source-divergence veto**: if chatter is wildly out of line with officials
+  on the dominant theme, sit out. Needs an engine tweak — vetoes look at
+  theme scores today; divergence is per-subtheme.
+- **Rumor-only veto**: if the bullish/bearish lean comes >75% from
+  `social_*` buckets and nothing official, refuse to size up.
+- **Crowding veto**: if `crowding_score` for the dominant theme is extreme,
+  the trade is consensus and edge is mostly gone.
+
+**Why books differ** — each of the {len(cfg.get('books', []))} books has its own
+theme weights, thresholds, and veto rules. The same data can leave WTI flat
+(macro vetoed) while Brent is long and the Brent-WTI spread is strong long.
+That's the multi-book design at work.
+
+Edit any of this in `app/config/multi_strategy_config.json` — changes take
+effect on the next `score_narratives.py` / `run_multi_backtest.py` run, and
+the dashboard re-reads the config on each refresh.
 """)
 
     if theme_scores.empty:
