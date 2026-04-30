@@ -1,6 +1,7 @@
 import json
 import sqlite3
 import sys
+from datetime import date
 from pathlib import Path
 
 import altair as alt
@@ -188,7 +189,18 @@ else:
     events["event_date"] = ""
 
 available_dates = sorted(scores["score_date"].unique(), reverse=True)
-selected_date = st.selectbox("Select date", available_dates, index=0)
+latest_with_data = date.fromisoformat(available_dates[0]) if available_dates else date.today()
+picked = st.date_input(
+    "Select date",
+    value=latest_with_data,
+    min_value=date(2010, 1, 1),
+    max_value=date.today(),
+    help="Pick any date — dates without scored narratives will show an empty view.",
+)
+selected_date = picked.isoformat()
+if selected_date not in available_dates:
+    st.caption(f"No scored narratives for {selected_date} yet. "
+               f"Latest with data: {available_dates[0] if available_dates else '—'}.")
 
 day_scores = scores[scores["score_date"] == selected_date].copy()
 day_events = events[events["event_date"] == selected_date].copy()
@@ -459,7 +471,7 @@ with tab_upload:
             picked_date = st.date_input(
                 "Report publication date  ⚠ set this to when the report was *written*, not today",
                 value=None,
-                min_value=_date(2020, 1, 1),
+                min_value=_date(2010, 1, 1),
                 max_value=_date.today(),
             )
 
