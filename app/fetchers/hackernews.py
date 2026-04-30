@@ -26,27 +26,44 @@ def fetch_query(
     source_bucket: str = "social_open",
     limit: int = 30,
     since: Optional[date] = None,
+    until: Optional[date] = None,
     min_points: int = 0,
     min_chars: int = 80,
     timeout: int = 20,
+    max_pages: int = 5,
 ) -> List[FetchedDocument]:
-    """Search HN stories matching `query` newer than `since`."""
-    params = {"query": query, "tags": "story", "hitsPerPage": min(100, limit)}
+    """Search HN stories matching `query` within [since, until].
+
+    If `until` is given, paginates up to `max_pages` * 100 hits.
+    """
+    base_params = {"query": query, "tags": "story", "hitsPerPage": 100 if until else min(100, limit)}
+    numfilters = []
     if since is not None:
         ts = int(datetime.combine(since, datetime.min.time(), tzinfo=timezone.utc).timestamp())
-        params["numericFilters"] = f"created_at_i>={ts}"
+        numfilters.append(f"created_at_i>={ts}")
+    if until is not None:
+        ts = int(datetime.combine(until, datetime.min.time(), tzinfo=timezone.utc).timestamp())
+        numfilters.append(f"created_at_i<={ts + 86400}")  # inclusive of the `until` day
+    if numfilters:
+        base_params["numericFilters"] = ",".join(numfilters)
 
-    resp = requests.get(
-        SEARCH_URL,
-        params=params,
-        headers={"User-Agent": USER_AGENT},
-        timeout=timeout,
-    )
-    resp.raise_for_status()
-    payload = resp.json()
+    pages_to_fetch = max_pages if until else 1
+    all_hits = []
+    for page in range(pages_to_fetch):
+        params = dict(base_params, page=page)
+        resp = requests.get(
+            SEARCH_URL, params=params,
+            headers={"User-Agent": USER_AGENT}, timeout=timeout,
+        )
+        resp.raise_for_status()
+        payload = resp.json()
+        hits = payload.get("hits", []) or []
+        all_hits.extend(hits)
+        if len(hits) < base_params["hitsPerPage"]:
+            break
 
     docs: List[FetchedDocument] = []
-    for hit in payload.get("hits", []):
+    for hit in all_hits[: (limit if not until else len(all_hits))]:
         title = (hit.get("title") or "").strip()
         if not title:
             continue

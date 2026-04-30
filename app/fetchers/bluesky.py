@@ -25,21 +25,45 @@ def fetch_query(
     source_bucket: str = "social_open",
     limit: int = 100,
     since: Optional[date] = None,
+    until: Optional[date] = None,
     min_chars: int = 200,
     timeout: int = 20,
+    max_pages: int = 10,
 ) -> List[FetchedDocument]:
-    """Search Bluesky for `query` (string or boolean) and bundle posts by day."""
-    resp = requests.get(
-        SEARCH_URL,
-        params={"q": query, "limit": min(100, limit), "sort": "latest"},
-        headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
-        timeout=timeout,
-    )
-    resp.raise_for_status()
-    payload = resp.json()
+    """Search Bluesky for `query` and bundle posts by day.
+
+    If `until` is given, paginates with `cursor` up to `max_pages` to
+    walk older posts; both `since` and `until` are passed to the API
+    so it filters server-side too.
+    """
+    base_params = {"q": query, "limit": min(100, limit), "sort": "latest"}
+    if since is not None:
+        base_params["since"] = datetime.combine(since, datetime.min.time(), tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
+    if until is not None:
+        base_params["until"] = datetime.combine(until, datetime.min.time(), tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
+
+    pages_to_fetch = max_pages if until else 1
+    all_posts = []
+    cursor = None
+    for _ in range(pages_to_fetch):
+        params = dict(base_params)
+        if cursor:
+            params["cursor"] = cursor
+        resp = requests.get(
+            SEARCH_URL, params=params,
+            headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
+            timeout=timeout,
+        )
+        resp.raise_for_status()
+        payload = resp.json()
+        posts = payload.get("posts") or []
+        all_posts.extend(posts)
+        cursor = payload.get("cursor")
+        if not cursor or not posts:
+            break
 
     by_day: dict[date, list[dict]] = defaultdict(list)
-    for post in payload.get("posts", []):
+    for post in all_posts:
         record = post.get("record") or {}
         created = record.get("createdAt")
         if not created:
@@ -50,6 +74,8 @@ def fetch_query(
             continue
         d = dt.astimezone(timezone.utc).date()
         if since is not None and d < since:
+            continue
+        if until is not None and d > until:
             continue
         by_day[d].append(post)
 
