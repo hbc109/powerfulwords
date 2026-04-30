@@ -153,10 +153,74 @@ sources:
   - source_id: reddit_oil
     source_name: Reddit
     source_bucket: social_open
-    access_mode: manual_upload
+    access_mode: website_api
     cost_level: free
     credibility_tier: 5
-    notes: r/oil, r/wallstreetbets etc.
+    notes: r/oil, r/oilandgasworkers, r/energy, r/commodities, r/EnergyTrading, plus keyword searches in r/wallstreetbets / r/StockMarket. Auto-fetched by app.fetchers.reddit.
+
+  - source_id: stocktwits_energy
+    source_name: StockTwits
+    source_bucket: social_open
+    access_mode: website_api
+    cost_level: free
+    credibility_tier: 5
+    notes: Public cashtag streams ($CL_F, $BZ_F, $USO, $XOM, $XLE). Bundled per-day per-symbol. Auto-fetched by app.fetchers.stocktwits.
+
+  - source_id: bluesky_energy
+    source_name: Bluesky
+    source_bucket: social_open
+    access_mode: website_api
+    cost_level: free
+    credibility_tier: 5
+    notes: Public AppView searchPosts API. Bundled per-day per-query. Auto-fetched by app.fetchers.bluesky.
+
+  - source_id: hackernews_energy
+    source_name: Hacker News
+    source_bucket: social_open
+    access_mode: website_api
+    cost_level: free
+    credibility_tier: 4
+    notes: Algolia HN search API. One doc per matching story. Auto-fetched by app.fetchers.hackernews.
+
+  - source_id: oilprice_news
+    source_name: OilPrice.com
+    source_bucket: authoritative_news
+    access_mode: website_rss
+    cost_level: free
+    credibility_tier: 3
+    notes: OilPrice.com headline feed. Auto-fetched via RSS.
+
+  - source_id: rbn_energy
+    source_name: RBN Energy
+    source_bucket: authoritative_news
+    access_mode: website_rss
+    cost_level: free
+    credibility_tier: 2
+    notes: RBN Energy daily blog (analytical commentary on US oil/gas markets).
+
+  - source_id: zerohedge_energy
+    source_name: ZeroHedge
+    source_bucket: authoritative_news
+    access_mode: website_rss
+    cost_level: free
+    credibility_tier: 4
+    notes: ZeroHedge feed (broad, sentiment-prone). Filter for oil/energy keywords downstream.
+
+  - source_id: energy_voice
+    source_name: Energy Voice
+    source_bucket: authoritative_news
+    access_mode: website_rss
+    cost_level: free
+    credibility_tier: 3
+    notes: Energy Voice feed (UK-North Sea tilt, useful for upstream chatter).
+
+  - source_id: world_oil
+    source_name: World Oil
+    source_bucket: authoritative_news
+    access_mode: website_rss
+    cost_level: free
+    credibility_tier: 3
+    notes: World Oil magazine news feed.
 
   - source_id: truth_social
     source_name: Truth Social

@@ -15,6 +15,7 @@ from app.fetchers.base import USER_AGENT, FetchedDocument
 
 
 REDDIT_LISTING_URL = "https://www.reddit.com/r/{subreddit}/{listing}.json"
+REDDIT_SEARCH_URL = "https://www.reddit.com/r/{subreddit}/search.json"
 
 
 def fetch_subreddit(
@@ -24,16 +25,26 @@ def fetch_subreddit(
     listing: str = "new",
     limit: int = 25,
     since: Optional[date] = None,
+    query: Optional[str] = None,
     timeout: int = 20,
 ) -> List[FetchedDocument]:
     """Pull `limit` posts from r/<subreddit>. Filter to >= since if given.
 
+    If `query` is provided, hits the subreddit search endpoint
+    (restricted to the sub) — useful for pulling oil chatter out of
+    noisy general subs like wallstreetbets or StockMarket.
+
     Skips link-only posts (no selftext) — narrative extraction needs body text.
     """
-    url = REDDIT_LISTING_URL.format(subreddit=subreddit, listing=listing)
+    if query:
+        url = REDDIT_SEARCH_URL.format(subreddit=subreddit)
+        params = {"q": query, "restrict_sr": "on", "sort": "new", "limit": limit}
+    else:
+        url = REDDIT_LISTING_URL.format(subreddit=subreddit, listing=listing)
+        params = {"limit": limit}
     resp = requests.get(
         url,
-        params={"limit": limit},
+        params=params,
         headers={"User-Agent": USER_AGENT},
         timeout=timeout,
     )

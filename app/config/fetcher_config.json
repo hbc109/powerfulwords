@@ -27,6 +27,211 @@
       }
     },
     {
+      "name": "reddit_energy",
+      "type": "reddit",
+      "enabled": true,
+      "params": {
+        "subreddit": "energy",
+        "source_id": "reddit_oil",
+        "source_bucket": "social_open",
+        "listing": "new",
+        "limit": 15
+      }
+    },
+    {
+      "name": "reddit_commodities",
+      "type": "reddit",
+      "enabled": true,
+      "params": {
+        "subreddit": "commodities",
+        "source_id": "reddit_oil",
+        "source_bucket": "social_open",
+        "listing": "new",
+        "limit": 15
+      }
+    },
+    {
+      "name": "reddit_energytrading",
+      "type": "reddit",
+      "enabled": true,
+      "params": {
+        "subreddit": "EnergyTrading",
+        "source_id": "reddit_oil",
+        "source_bucket": "social_open",
+        "listing": "new",
+        "limit": 15
+      }
+    },
+    {
+      "name": "reddit_wsb_oil",
+      "type": "reddit",
+      "enabled": true,
+      "params": {
+        "subreddit": "wallstreetbets",
+        "source_id": "reddit_oil",
+        "source_bucket": "social_open",
+        "query": "oil OR brent OR WTI OR OPEC OR USO OR XOM",
+        "limit": 15
+      }
+    },
+    {
+      "name": "reddit_stockmarket_oil",
+      "type": "reddit",
+      "enabled": true,
+      "params": {
+        "subreddit": "StockMarket",
+        "source_id": "reddit_oil",
+        "source_bucket": "social_open",
+        "query": "oil OR brent OR WTI OR OPEC OR crude",
+        "limit": 15
+      }
+    },
+
+    {
+      "name": "stocktwits_cl",
+      "type": "stocktwits",
+      "enabled": false,
+      "_note": "Disabled 2026-04-30: StockTwits API now behind Cloudflare bot-protection (403). Enable only with a partner API key.",
+      "params": {
+        "symbol": "CL_F",
+        "source_id": "stocktwits_energy",
+        "source_bucket": "social_open",
+        "limit": 30
+      }
+    },
+    {
+      "name": "stocktwits_bz",
+      "type": "stocktwits",
+      "enabled": false,
+      "_note": "Disabled 2026-04-30: StockTwits API now behind Cloudflare bot-protection (403). Enable only with a partner API key.",
+      "params": {
+        "symbol": "BZ_F",
+        "source_id": "stocktwits_energy",
+        "source_bucket": "social_open",
+        "limit": 30
+      }
+    },
+    {
+      "name": "stocktwits_uso",
+      "type": "stocktwits",
+      "enabled": false,
+      "_note": "Disabled 2026-04-30: StockTwits API now behind Cloudflare bot-protection (403). Enable only with a partner API key.",
+      "params": {
+        "symbol": "USO",
+        "source_id": "stocktwits_energy",
+        "source_bucket": "social_open",
+        "limit": 30
+      }
+    },
+    {
+      "name": "stocktwits_xom",
+      "type": "stocktwits",
+      "enabled": false,
+      "_note": "Disabled 2026-04-30: StockTwits API now behind Cloudflare bot-protection (403). Enable only with a partner API key.",
+      "params": {
+        "symbol": "XOM",
+        "source_id": "stocktwits_energy",
+        "source_bucket": "social_open",
+        "limit": 30
+      }
+    },
+    {
+      "name": "stocktwits_xle",
+      "type": "stocktwits",
+      "enabled": false,
+      "_note": "Disabled 2026-04-30: StockTwits API now behind Cloudflare bot-protection (403). Enable only with a partner API key.",
+      "params": {
+        "symbol": "XLE",
+        "source_id": "stocktwits_energy",
+        "source_bucket": "social_open",
+        "limit": 30
+      }
+    },
+
+    {
+      "name": "bluesky_oil",
+      "type": "bluesky",
+      "enabled": true,
+      "params": {
+        "query": "oil price",
+        "source_id": "bluesky_energy",
+        "source_bucket": "social_open",
+        "limit": 100
+      }
+    },
+    {
+      "name": "bluesky_brent_wti",
+      "type": "bluesky",
+      "enabled": true,
+      "params": {
+        "query": "brent OR WTI OR crude",
+        "source_id": "bluesky_energy",
+        "source_bucket": "social_open",
+        "limit": 100
+      }
+    },
+    {
+      "name": "bluesky_opec",
+      "type": "bluesky",
+      "enabled": true,
+      "params": {
+        "query": "OPEC",
+        "source_id": "bluesky_energy",
+        "source_bucket": "social_open",
+        "limit": 100
+      }
+    },
+
+    {
+      "name": "hn_oil",
+      "type": "hackernews",
+      "enabled": true,
+      "params": {
+        "query": "oil",
+        "source_id": "hackernews_energy",
+        "source_bucket": "social_open",
+        "limit": 30,
+        "min_points": 5
+      }
+    },
+    {
+      "name": "hn_opec",
+      "type": "hackernews",
+      "enabled": true,
+      "params": {
+        "query": "OPEC",
+        "source_id": "hackernews_energy",
+        "source_bucket": "social_open",
+        "limit": 20,
+        "min_points": 3
+      }
+    },
+    {
+      "name": "hn_shale",
+      "type": "hackernews",
+      "enabled": true,
+      "params": {
+        "query": "shale OR fracking",
+        "source_id": "hackernews_energy",
+        "source_bucket": "social_open",
+        "limit": 20,
+        "min_points": 5
+      }
+    },
+    {
+      "name": "hn_energy",
+      "type": "hackernews",
+      "enabled": true,
+      "params": {
+        "query": "energy crisis",
+        "source_id": "hackernews_energy",
+        "source_bucket": "social_open",
+        "limit": 20,
+        "min_points": 10
+      }
+    },
+
+    {
       "name": "eia_twip",
       "type": "rss",
       "enabled": true,
@@ -50,6 +255,67 @@
         "follow_links": false
       }
     },
+    {
+      "name": "oilprice_news",
+      "type": "rss",
+      "enabled": true,
+      "params": {
+        "feed_url": "https://oilprice.com/rss/main",
+        "source_id": "oilprice_news",
+        "source_bucket": "authoritative_news",
+        "limit": 25,
+        "follow_links": true
+      }
+    },
+    {
+      "name": "rbn_energy",
+      "type": "rss",
+      "enabled": true,
+      "params": {
+        "feed_url": "https://rbnenergy.com/rss.xml",
+        "source_id": "rbn_energy",
+        "source_bucket": "authoritative_news",
+        "limit": 15,
+        "follow_links": true
+      }
+    },
+    {
+      "name": "zerohedge_feed",
+      "type": "rss",
+      "enabled": true,
+      "params": {
+        "feed_url": "https://feeds.feedburner.com/zerohedge/feed",
+        "source_id": "zerohedge_energy",
+        "source_bucket": "authoritative_news",
+        "limit": 30,
+        "follow_links": false
+      }
+    },
+    {
+      "name": "energy_voice",
+      "type": "rss",
+      "enabled": true,
+      "params": {
+        "feed_url": "https://www.energyvoice.com/feed/",
+        "source_id": "energy_voice",
+        "source_bucket": "authoritative_news",
+        "limit": 20,
+        "follow_links": false
+      }
+    },
+    {
+      "name": "world_oil",
+      "type": "rss",
+      "enabled": true,
+      "params": {
+        "feed_url": "https://www.worldoil.com/news/rss",
+        "source_id": "world_oil",
+        "source_bucket": "authoritative_news",
+        "limit": 20,
+        "follow_links": false
+      }
+    },
+
     {
       "name": "opec_press",
       "type": "opec_press",

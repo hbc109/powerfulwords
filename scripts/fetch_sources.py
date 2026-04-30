@@ -70,6 +70,15 @@ def run_fetcher(spec: dict, since: date) -> list[FetchedDocument]:
     if typ == "agency_html":
         from app.fetchers.agency_html import fetch_agency
         return fetch_agency(**params)
+    if typ == "stocktwits":
+        from app.fetchers.stocktwits import fetch_symbol
+        return fetch_symbol(**params)
+    if typ == "bluesky":
+        from app.fetchers.bluesky import fetch_query
+        return fetch_query(**params)
+    if typ == "hackernews":
+        from app.fetchers.hackernews import fetch_query
+        return fetch_query(**params)
     raise ValueError(f"Unknown fetcher type: {typ}")
 
 
