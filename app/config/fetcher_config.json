@@ -70,8 +70,8 @@
         "subreddit": "wallstreetbets",
         "source_id": "reddit_oil",
         "source_bucket": "social_open",
-        "query": "oil OR brent OR WTI OR OPEC OR USO OR XOM",
-        "limit": 15
+        "query": "oil OR brent OR WTI OR OPEC OR crude OR shale OR refinery OR USO OR XOM OR Aramco OR petroleum",
+        "limit": 20
       }
     },
     {
@@ -82,7 +82,31 @@
         "subreddit": "StockMarket",
         "source_id": "reddit_oil",
         "source_bucket": "social_open",
-        "query": "oil OR brent OR WTI OR OPEC OR crude",
+        "query": "oil OR brent OR WTI OR OPEC OR crude OR shale OR refinery OR Aramco OR petroleum",
+        "limit": 20
+      }
+    },
+    {
+      "name": "reddit_investing_oil",
+      "type": "reddit",
+      "enabled": true,
+      "params": {
+        "subreddit": "investing",
+        "source_id": "reddit_oil",
+        "source_bucket": "social_open",
+        "query": "oil OR crude OR OPEC OR brent OR WTI OR refinery OR Aramco",
+        "limit": 20
+      }
+    },
+    {
+      "name": "reddit_geopolitics_oil",
+      "type": "reddit",
+      "enabled": true,
+      "params": {
+        "subreddit": "geopolitics",
+        "source_id": "reddit_oil",
+        "source_bucket": "social_open",
+        "query": "oil OR crude OR OPEC OR Hormuz OR sanctions OR pipeline OR refinery",
         "limit": 15
       }
     },
@@ -149,11 +173,44 @@
     },
 
     {
-      "name": "bluesky_oil",
+      "name": "bluesky_oil_market",
       "type": "bluesky",
       "enabled": true,
       "params": {
-        "query": "oil price",
+        "query": "\"oil market\"",
+        "source_id": "bluesky_energy",
+        "source_bucket": "social_open",
+        "limit": 100
+      }
+    },
+    {
+      "name": "bluesky_crude_oil",
+      "type": "bluesky",
+      "enabled": true,
+      "params": {
+        "query": "\"crude oil\"",
+        "source_id": "bluesky_energy",
+        "source_bucket": "social_open",
+        "limit": 100
+      }
+    },
+    {
+      "name": "bluesky_oil_price",
+      "type": "bluesky",
+      "enabled": true,
+      "params": {
+        "query": "\"oil price\"",
+        "source_id": "bluesky_energy",
+        "source_bucket": "social_open",
+        "limit": 100
+      }
+    },
+    {
+      "name": "bluesky_oil_supply_demand",
+      "type": "bluesky",
+      "enabled": true,
+      "params": {
+        "query": "\"oil supply\" OR \"oil demand\" OR \"oil inventory\"",
         "source_id": "bluesky_energy",
         "source_bucket": "social_open",
         "limit": 100
@@ -164,7 +221,7 @@
       "type": "bluesky",
       "enabled": true,
       "params": {
-        "query": "brent OR WTI OR crude",
+        "query": "brent OR WTI",
         "source_id": "bluesky_energy",
         "source_bucket": "social_open",
         "limit": 100
@@ -181,17 +238,75 @@
         "limit": 100
       }
     },
+    {
+      "name": "bluesky_aramco_hormuz",
+      "type": "bluesky",
+      "enabled": true,
+      "params": {
+        "query": "Aramco OR Hormuz OR \"Saudi oil\"",
+        "source_id": "bluesky_energy",
+        "source_bucket": "social_open",
+        "limit": 100
+      }
+    },
+    {
+      "name": "bluesky_refinery",
+      "type": "bluesky",
+      "enabled": true,
+      "params": {
+        "query": "refinery OR \"refining margin\" OR \"crack spread\"",
+        "source_id": "bluesky_energy",
+        "source_bucket": "social_open",
+        "limit": 100
+      }
+    },
 
     {
-      "name": "hn_oil",
+      "name": "hn_crude_oil",
       "type": "hackernews",
       "enabled": true,
       "params": {
-        "query": "oil",
+        "query": "\"crude oil\"",
         "source_id": "hackernews_energy",
         "source_bucket": "social_open",
         "limit": 30,
-        "min_points": 5
+        "min_points": 3
+      }
+    },
+    {
+      "name": "hn_oil_market",
+      "type": "hackernews",
+      "enabled": true,
+      "params": {
+        "query": "\"oil market\"",
+        "source_id": "hackernews_energy",
+        "source_bucket": "social_open",
+        "limit": 30,
+        "min_points": 3
+      }
+    },
+    {
+      "name": "hn_oil_price",
+      "type": "hackernews",
+      "enabled": true,
+      "params": {
+        "query": "\"oil price\"",
+        "source_id": "hackernews_energy",
+        "source_bucket": "social_open",
+        "limit": 30,
+        "min_points": 3
+      }
+    },
+    {
+      "name": "hn_oil_supply",
+      "type": "hackernews",
+      "enabled": true,
+      "params": {
+        "query": "\"oil supply\" OR \"oil demand\"",
+        "source_id": "hackernews_energy",
+        "source_bucket": "social_open",
+        "limit": 20,
+        "min_points": 3
       }
     },
     {
@@ -219,11 +334,35 @@
       }
     },
     {
-      "name": "hn_energy",
+      "name": "hn_refinery",
       "type": "hackernews",
       "enabled": true,
       "params": {
-        "query": "energy crisis",
+        "query": "refinery OR \"refining margin\"",
+        "source_id": "hackernews_energy",
+        "source_bucket": "social_open",
+        "limit": 20,
+        "min_points": 3
+      }
+    },
+    {
+      "name": "hn_aramco_hormuz",
+      "type": "hackernews",
+      "enabled": true,
+      "params": {
+        "query": "Aramco OR Hormuz",
+        "source_id": "hackernews_energy",
+        "source_bucket": "social_open",
+        "limit": 20,
+        "min_points": 3
+      }
+    },
+    {
+      "name": "hn_energy_crisis",
+      "type": "hackernews",
+      "enabled": true,
+      "params": {
+        "query": "\"energy crisis\"",
         "source_id": "hackernews_energy",
         "source_bucket": "social_open",
         "limit": 20,
