@@ -110,6 +110,66 @@
         "limit": 15
       }
     },
+    {
+      "name": "reddit_wsb_majors_houses",
+      "type": "reddit",
+      "enabled": true,
+      "params": {
+        "subreddit": "wallstreetbets",
+        "source_id": "reddit_oil",
+        "source_bucket": "social_open",
+        "query": "Exxon OR Chevron OR Shell OR ConocoPhillips OR TotalEnergies OR Vitol OR Trafigura OR Glencore OR Mercuria OR Gunvor OR XOM OR CVX OR COP",
+        "limit": 20
+      }
+    },
+    {
+      "name": "reddit_investing_majors_houses",
+      "type": "reddit",
+      "enabled": true,
+      "params": {
+        "subreddit": "investing",
+        "source_id": "reddit_oil",
+        "source_bucket": "social_open",
+        "query": "Exxon OR Chevron OR Shell OR ConocoPhillips OR TotalEnergies OR Petrobras OR Vitol OR Trafigura OR Glencore",
+        "limit": 20
+      }
+    },
+    {
+      "name": "reddit_wsb_cftc_funds",
+      "type": "reddit",
+      "enabled": true,
+      "params": {
+        "subreddit": "wallstreetbets",
+        "source_id": "reddit_oil",
+        "source_bucket": "social_open",
+        "query": "CFTC OR \"managed money\" OR \"hedge fund\" OR \"commodity fund\"",
+        "limit": 15
+      }
+    },
+    {
+      "name": "reddit_securityanalysis_oil",
+      "type": "reddit",
+      "enabled": true,
+      "params": {
+        "subreddit": "SecurityAnalysis",
+        "source_id": "reddit_oil",
+        "source_bucket": "social_open",
+        "query": "oil OR Exxon OR Chevron OR Shell OR Petrobras OR Aramco OR refinery",
+        "limit": 15
+      }
+    },
+    {
+      "name": "reddit_algotrading_commodities",
+      "type": "reddit",
+      "enabled": true,
+      "params": {
+        "subreddit": "algotrading",
+        "source_id": "reddit_oil",
+        "source_bucket": "social_open",
+        "query": "oil OR crude OR commodity OR commodities OR CTA",
+        "limit": 15
+      }
+    },
 
     {
       "name": "stocktwits_cl",
@@ -260,6 +320,61 @@
         "limit": 100
       }
     },
+    {
+      "name": "bluesky_trading_houses",
+      "type": "bluesky",
+      "enabled": true,
+      "params": {
+        "query": "Vitol OR Trafigura OR Glencore OR Mercuria OR Gunvor",
+        "source_id": "bluesky_energy",
+        "source_bucket": "social_open",
+        "limit": 100
+      }
+    },
+    {
+      "name": "bluesky_oil_majors",
+      "type": "bluesky",
+      "enabled": true,
+      "params": {
+        "query": "Exxon OR Chevron OR ConocoPhillips OR TotalEnergies OR Petrobras OR Equinor",
+        "source_id": "bluesky_energy",
+        "source_bucket": "social_open",
+        "limit": 100
+      }
+    },
+    {
+      "name": "bluesky_cftc_positioning",
+      "type": "bluesky",
+      "enabled": true,
+      "params": {
+        "query": "CFTC OR \"commitments of traders\" OR \"managed money\"",
+        "source_id": "bluesky_energy",
+        "source_bucket": "social_open",
+        "limit": 100
+      }
+    },
+    {
+      "name": "bluesky_commodity_funds",
+      "type": "bluesky",
+      "enabled": true,
+      "params": {
+        "query": "\"commodity fund\" OR \"commodity hedge\" OR \"commodity trading advisor\"",
+        "source_id": "bluesky_energy",
+        "source_bucket": "social_open",
+        "limit": 100
+      }
+    },
+    {
+      "name": "bluesky_commodities_general",
+      "type": "bluesky",
+      "enabled": true,
+      "params": {
+        "query": "\"commodity prices\" OR \"commodity markets\"",
+        "source_id": "bluesky_energy",
+        "source_bucket": "social_open",
+        "limit": 100
+      }
+    },
 
     {
       "name": "hn_crude_oil",
@@ -367,6 +482,66 @@
         "source_bucket": "social_open",
         "limit": 20,
         "min_points": 10
+      }
+    },
+    {
+      "name": "hn_trading_houses",
+      "type": "hackernews",
+      "enabled": true,
+      "params": {
+        "query": "Vitol OR Trafigura OR Glencore OR Mercuria OR Gunvor",
+        "source_id": "hackernews_energy",
+        "source_bucket": "social_open",
+        "limit": 20,
+        "min_points": 3
+      }
+    },
+    {
+      "name": "hn_oil_majors",
+      "type": "hackernews",
+      "enabled": true,
+      "params": {
+        "query": "Exxon OR Chevron OR ConocoPhillips OR TotalEnergies OR Petrobras OR Equinor",
+        "source_id": "hackernews_energy",
+        "source_bucket": "social_open",
+        "limit": 20,
+        "min_points": 3
+      }
+    },
+    {
+      "name": "hn_cftc_positioning",
+      "type": "hackernews",
+      "enabled": true,
+      "params": {
+        "query": "CFTC OR \"commitments of traders\" OR \"managed money\"",
+        "source_id": "hackernews_energy",
+        "source_bucket": "social_open",
+        "limit": 20,
+        "min_points": 3
+      }
+    },
+    {
+      "name": "hn_commodity_funds",
+      "type": "hackernews",
+      "enabled": true,
+      "params": {
+        "query": "\"commodity fund\" OR \"commodity hedge\" OR \"commodity trading advisor\"",
+        "source_id": "hackernews_energy",
+        "source_bucket": "social_open",
+        "limit": 20,
+        "min_points": 3
+      }
+    },
+    {
+      "name": "hn_commodities_general",
+      "type": "hackernews",
+      "enabled": true,
+      "params": {
+        "query": "\"commodity prices\" OR \"commodity markets\"",
+        "source_id": "hackernews_energy",
+        "source_bucket": "social_open",
+        "limit": 20,
+        "min_points": 3
       }
     },
 
