@@ -560,13 +560,102 @@
     {
       "name": "reuters_energy_business",
       "type": "rss",
-      "enabled": true,
+      "enabled": false,
+      "_note": "Disabled 2026-04-30: reutersagency.com feed URL returns 404 and reuters.com/world/energy/feed/ is paywalled (401). Coverage flows in via Google News queries below.",
       "params": {
         "feed_url": "https://www.reutersagency.com/feed/?best-topics=business-finance&post_type=best",
         "source_id": "reuters_energy",
         "source_bucket": "authoritative_news",
         "limit": 20,
         "follow_links": false
+      }
+    },
+    {
+      "name": "google_news_trump_oil",
+      "type": "rss",
+      "enabled": true,
+      "params": {
+        "feed_url": "https://news.google.com/rss/search?q=Trump+oil+OR+crude+OR+OPEC&hl=en-US&gl=US",
+        "source_id": "google_news",
+        "source_bucket": "authoritative_news",
+        "limit": 30,
+        "follow_links": true,
+        "min_chars": 80
+      }
+    },
+    {
+      "name": "google_news_whitehouse_energy",
+      "type": "rss",
+      "enabled": true,
+      "params": {
+        "feed_url": "https://news.google.com/rss/search?q=%22White+House%22+oil+OR+energy+OR+gasoline&hl=en-US&gl=US",
+        "source_id": "google_news",
+        "source_bucket": "authoritative_news",
+        "limit": 30,
+        "follow_links": true,
+        "min_chars": 80
+      }
+    },
+    {
+      "name": "google_news_iran_oil_sanctions",
+      "type": "rss",
+      "enabled": true,
+      "params": {
+        "feed_url": "https://news.google.com/rss/search?q=Iran+oil+OR+sanctions+OR+Hormuz&hl=en-US&gl=US",
+        "source_id": "google_news",
+        "source_bucket": "authoritative_news",
+        "limit": 30,
+        "follow_links": true,
+        "min_chars": 80
+      }
+    },
+    {
+      "name": "google_news_energy_secretary_spr",
+      "type": "rss",
+      "enabled": true,
+      "params": {
+        "feed_url": "https://news.google.com/rss/search?q=%22Energy+Secretary%22+OR+%22strategic+petroleum+reserve%22+OR+SPR&hl=en-US&gl=US",
+        "source_id": "google_news",
+        "source_bucket": "authoritative_news",
+        "limit": 20,
+        "follow_links": true,
+        "min_chars": 80
+      }
+    },
+    {
+      "name": "whitehouse_news",
+      "type": "rss",
+      "enabled": true,
+      "params": {
+        "feed_url": "https://www.whitehouse.gov/news/feed/",
+        "source_id": "whitehouse_news",
+        "source_bucket": "official_data",
+        "limit": 25,
+        "follow_links": true
+      }
+    },
+    {
+      "name": "whitehouse_actions",
+      "type": "rss",
+      "enabled": true,
+      "params": {
+        "feed_url": "https://www.whitehouse.gov/presidential-actions/feed/",
+        "source_id": "whitehouse_actions",
+        "source_bucket": "official_data",
+        "limit": 15,
+        "follow_links": true
+      }
+    },
+    {
+      "name": "fed_speeches",
+      "type": "rss",
+      "enabled": true,
+      "params": {
+        "feed_url": "https://www.federalreserve.gov/feeds/speeches.xml",
+        "source_id": "fed_speeches",
+        "source_bucket": "official_data",
+        "limit": 15,
+        "follow_links": true
       }
     },
     {

@@ -222,13 +222,45 @@ sources:
     credibility_tier: 3
     notes: World Oil magazine news feed.
 
+  - source_id: google_news
+    source_name: Google News
+    source_bucket: authoritative_news
+    access_mode: website_rss
+    cost_level: free
+    credibility_tier: 3
+    notes: Google News RSS aggregator. Captures Reuters/Bloomberg/AP syndicated coverage and reposts of Trump Truth Social posts (since direct Truth Social API is Cloudflare-gated). Multiple targeted queries covering Trump-on-oil, White House energy, Iran/sanctions, and Energy Secretary/SPR.
+
+  - source_id: whitehouse_news
+    source_name: WhiteHouse.gov News
+    source_bucket: official_data
+    access_mode: website_rss
+    cost_level: free
+    credibility_tier: 1
+    notes: White House news / press releases. Captures presidential statements that talk markets up or down.
+
+  - source_id: whitehouse_actions
+    source_name: WhiteHouse.gov Presidential Actions
+    source_bucket: official_data
+    access_mode: website_rss
+    cost_level: free
+    credibility_tier: 1
+    notes: Executive orders, proclamations, nominations.
+
+  - source_id: fed_speeches
+    source_name: Federal Reserve Speeches
+    source_bucket: official_data
+    access_mode: website_rss
+    cost_level: free
+    credibility_tier: 1
+    notes: FOMC member speeches; references to oil/inflation/energy frequently move the front-month curve.
+
   - source_id: truth_social
     source_name: Truth Social
     source_bucket: social_open
     access_mode: manual_upload
     cost_level: free
     credibility_tier: 5
-    notes: Truth Social posts with potential market impact.
+    notes: Truth Social posts with potential market impact. Direct API (truthsocial.com/api/v1) is Cloudflare-gated (403); coverage of Trump's posts arrives indirectly via google_news queries. For real-time access, manual paste or screenshot OCR.
 
   # --- Private chatter (manual upload from WeChat / Telegram / WhatsApp) ---
   - source_id: telegram_forwarded
