@@ -232,8 +232,8 @@ c5.metric("Average Event Confidence", avg_conf)
 
 st.info(f"Main Sources: {main_sources}")
 
-tab_recs, tab_upload, tab1, tab_trends, tab2, tab3, tab_multi = st.tabs(
-    ["Recommendations", "Upload", "Overview", "Trends", "Research", "Backtest", "Multi-book"]
+tab_recs, tab_upload, tab1, tab_trends, tab2, tab3, tab_multi, tab_method = st.tabs(
+    ["Recommendations", "Upload", "Overview", "Trends", "Research", "Backtest", "Multi-book", "Methodology"]
 )
 
 def _book_history_score(book_cfg, theme_scores_df, score_date_str):
@@ -882,3 +882,14 @@ with tab_multi:
                     st.write("No trades.")
                     continue
                 st.dataframe(pd.DataFrame(trades), width="stretch", hide_index=True)
+
+with tab_method:
+    method_path = BASE_DIR / "docs" / "methodology.md"
+    if method_path.exists():
+        st.markdown(method_path.read_text(encoding="utf-8"))
+    else:
+        st.warning(f"Methodology doc not found at {method_path}")
+        st.caption(
+            "Expected file: docs/methodology.md at the repo root. "
+            "If you cloned the repo without it, pull the latest from main."
+        )
