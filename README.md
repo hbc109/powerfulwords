@@ -5,6 +5,10 @@ End-to-end prototype that turns unstructured crude-oil narratives
 structured signals, daily theme scores, multi-instrument backtests,
 and an actionable morning digest.
 
+> **How to read the model:** see [`docs/methodology.md`](docs/methodology.md)
+> for the daily score formula, source bucket weights, persistence /
+> breadth / crowding mechanics, and event-study interpretation.
+
 ## What this project does
 
 ```
