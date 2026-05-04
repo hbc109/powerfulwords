@@ -718,6 +718,45 @@
         "follow_links": false
       }
     },
+    {
+      "name": "cnbc_energy",
+      "type": "rss",
+      "enabled": true,
+      "params": {
+        "feed_url": "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=19836768",
+        "source_id": "cnbc_energy",
+        "source_bucket": "authoritative_news",
+        "limit": 30,
+        "follow_links": false,
+        "min_chars": 80
+      }
+    },
+    {
+      "name": "cnbc_top_news",
+      "type": "rss",
+      "enabled": true,
+      "params": {
+        "feed_url": "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114",
+        "source_id": "cnbc_top_news",
+        "source_bucket": "authoritative_news",
+        "limit": 30,
+        "follow_links": false,
+        "min_chars": 80
+      }
+    },
+    {
+      "name": "cnbc_economy",
+      "type": "rss",
+      "enabled": true,
+      "params": {
+        "feed_url": "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=20910258",
+        "source_id": "cnbc_economy",
+        "source_bucket": "authoritative_news",
+        "limit": 25,
+        "follow_links": false,
+        "min_chars": 80
+      }
+    },
 
     {
       "name": "opec_press",

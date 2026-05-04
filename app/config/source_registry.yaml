@@ -222,6 +222,30 @@ sources:
     credibility_tier: 3
     notes: World Oil magazine news feed.
 
+  - source_id: cnbc_energy
+    source_name: CNBC Energy
+    source_bucket: authoritative_news
+    access_mode: website_rss
+    cost_level: free
+    credibility_tier: 2
+    notes: CNBC oil/energy section RSS (id=19836768). Free, no auth.
+
+  - source_id: cnbc_top_news
+    source_name: CNBC Top News
+    source_bucket: authoritative_news
+    access_mode: website_rss
+    cost_level: free
+    credibility_tier: 2
+    notes: CNBC top-news RSS. Catches macro/geopolitics that touches oil.
+
+  - source_id: cnbc_economy
+    source_name: CNBC Economy
+    source_bucket: authoritative_news
+    access_mode: website_rss
+    cost_level: free
+    credibility_tier: 2
+    notes: CNBC economy RSS. Macro context for oil demand.
+
   - source_id: google_news
     source_name: Google News
     source_bucket: authoritative_news

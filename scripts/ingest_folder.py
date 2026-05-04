@@ -37,7 +37,7 @@ from app.utils import (
 )
 
 INBOX_ROOT = BASE_DIR / "data" / "inbox"
-SUPPORTED_EXTS = {".txt", ".pdf", ".docx"}
+SUPPORTED_EXTS = {".txt", ".pdf", ".docx", ".xlsx", ".xls"}
 DATE_PREFIX_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})[_\-\s](.+)$")
 
 

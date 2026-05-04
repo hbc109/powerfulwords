@@ -31,6 +31,25 @@ def read_pdf_file(path: Path) -> str:
             pages.append(txt)
     return "\n\n".join(pages)
 
+def read_excel_file(path: Path) -> str:
+    """Render every sheet as plain text. Each sheet becomes a section
+    headed by its name; rows become tab-separated lines so headers and
+    cell values stay aligned for the narrative extractor."""
+    import pandas as pd
+    sheets = pd.read_excel(path, sheet_name=None, dtype=str)
+    parts = []
+    for sheet_name, df in sheets.items():
+        if df is None or df.empty:
+            continue
+        df = df.fillna("")
+        parts.append(f"## Sheet: {sheet_name}")
+        parts.append("\t".join(str(c) for c in df.columns))
+        for _, row in df.iterrows():
+            parts.append("\t".join(str(v) for v in row.values))
+        parts.append("")
+    return "\n".join(parts)
+
+
 def extract_text_from_file(path: Path) -> str:
     suffix = path.suffix.lower()
     if suffix == ".txt":
@@ -39,6 +58,8 @@ def extract_text_from_file(path: Path) -> str:
         return read_docx_file(path)
     if suffix == ".pdf":
         return read_pdf_file(path)
+    if suffix in (".xlsx", ".xls"):
+        return read_excel_file(path)
     raise ValueError(f"Unsupported file type: {suffix}")
 
 def clean_text(text: str) -> str:

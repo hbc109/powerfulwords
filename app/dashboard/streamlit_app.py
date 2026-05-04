@@ -489,7 +489,7 @@ with tab_upload:
 
         uploaded = st.file_uploader(
             "Drop file here",
-            type=["pdf", "docx", "txt"],
+            type=["pdf", "docx", "txt", "xlsx", "xls"],
             accept_multiple_files=True,
         )
 
