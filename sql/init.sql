@@ -128,5 +128,6 @@ CREATE TABLE IF NOT EXISTS daily_regimes (
     sma50_slope_5d_pct REAL,
     regime_tags TEXT NOT NULL,
     primary_regime TEXT NOT NULL,
+    regime_streak INTEGER,
     PRIMARY KEY (regime_date, symbol)
 );

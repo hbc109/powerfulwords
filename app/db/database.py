@@ -28,6 +28,9 @@ def init_db() -> None:
         "narrative_events": [
             ("theme", "TEXT"),
         ],
+        "daily_regimes": [
+            ("regime_streak", "INTEGER"),
+        ],
     }
     for table, cols in additive_columns.items():
         cur = conn.execute(f"PRAGMA table_info({table})")

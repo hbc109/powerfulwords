@@ -104,4 +104,10 @@ def compute_regimes(
 
     out["regime_tags"] = out.apply(collect_tags, axis=1)
     out["primary_regime"] = out.apply(pick_primary, axis=1)
+
+    # Streak — how many consecutive days the primary_regime has held.
+    # Resets to 1 every time primary_regime changes.
+    group_id = (out["primary_regime"] != out["primary_regime"].shift()).cumsum()
+    out["regime_streak"] = out.groupby(group_id).cumcount() + 1
+
     return out

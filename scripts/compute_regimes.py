@@ -23,7 +23,7 @@ from app.research.regime import compute_regimes
 REGIME_COLS = [
     "close", "rsi14", "adx14", "atr14", "atr_ratio",
     "bb_pctb", "sma50", "sma50_slope_5d_pct",
-    "regime_tags", "primary_regime",
+    "regime_tags", "primary_regime", "regime_streak",
 ]
 
 
