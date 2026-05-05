@@ -588,6 +588,61 @@ with tab_upload:
                     st.write(f"- `{f.name}` ({size_kb:,.1f} KB)")
 
 with tab1:
+    with st.expander("📖 What this tab shows / how to read the scores", expanded=False):
+        st.markdown("""
+The **diagnostic view** for the picked date. Three sections, drilling from
+roll-up to raw events. Bullish/bearish here means *narrative direction*, not a
+trade — see the Narrative Tilt tab for the bias call.
+
+### The five header metrics (visible on every tab)
+
+| Metric | What it is |
+|---|---|
+| **Selected Date** | The date picked from the calendar. |
+| **Primary Narrative** | The topic with the largest `narrative_score` on that day. |
+| **Market Bias** | One-word label for the **sum of all narrative_scores across topics**: Strong Bullish / Bullish / Neutral / Bearish / Strong Bearish. A net read across the day's chatter. Note: a single very loud topic can outweigh many small opposite ones, so use it as an eyeball gauge, not a ground truth. |
+| **Score Rows** | How many topic-level rows exist for the day. Coverage proxy. |
+| **Avg Event Confidence** | Mean of the extractor's confidence (0–1) across the day's events. |
+
+### Themes (top-level rollup)
+Five themes — supply, demand, geopolitics, policy, macro. Sorted by
+`|narrative_score|` (loudest first).
+- **narrative_score**: signed (positive = bullish, negative = bearish).
+- **bias**: word label for the score.
+- **event_count / subtheme_count**: how much fed this theme.
+- **breadth** (0–1): source diversity, capped at 5 distinct sources.
+- **persistence** (0–1): trend continuity (5-day half-life weight on prior days).
+- **source_divergence** (0–1): gap between official-bucket direction and
+  chatter-bucket direction. High value = "the chatter is talking about
+  something officials are not yet confirming." Worth flagging.
+
+### Subthemes (topic level)
+Same idea, more granular: opec_policy, shipping_disruption,
+refining_margin_shift, etc. Extra columns:
+- **official_confirmation_score** (0–1): fraction of events officially confirmed.
+- **news_breadth_score** (0–1): fraction from authoritative news.
+- **chatter_score** (0–1): fraction from social buckets.
+- **crowding_score**: penalty (high = many events on one topic — edge usually
+  fades when a story is everywhere).
+
+### Events (raw narrative events)
+One row per discrete narrative the extractor read. Drillable via the topic
+filter. Use this to **audit** the extractor — `evidence_text` is the exact
+passage that produced the event, so you can spot-check whether the
+classification matches the source.
+
+| Column | Meaning |
+|---|---|
+| `event_time` | Source publication time. |
+| `topic` | Subtheme. |
+| `direction` | bullish / bearish / mixed / neutral. |
+| `source_bucket` | official_data / official_reports / authoritative_news / sellside_private / social_open / … |
+| `source_name` | The actual source (e.g. "Goldman Sachs", "Reddit", "WhiteHouse.gov"). |
+| `verification_status` | officially_confirmed / partially_confirmed / unverified / refuted. |
+| `confidence` | Extractor's confidence (0–1). |
+| `evidence_text` | The exact passage — your audit trail. |
+""")
+
     day_themes = (
         theme_scores[theme_scores["score_date"] == selected_date].copy()
         if not theme_scores.empty
