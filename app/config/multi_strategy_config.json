@@ -6,7 +6,10 @@
   "books": [
     {
       "name": "wti_outright",
-      "instrument": {"type": "outright", "symbol": "WTI"},
+      "instrument": {
+        "type": "outright",
+        "symbol": "WTI"
+      },
       "book_capital": 40000.0,
       "entry_threshold_long": 0.2,
       "entry_threshold_short": -0.2,
@@ -26,20 +29,43 @@
           "other": 0.5
         },
         "theme_vetoes": [
-          {"if_theme": "macro", "is": "below", "value": -1.0, "blocks": "long",
-           "note": "Don't long oil while macro is strongly bearish (recession / dollar-strength)."},
-          {"if_theme": "macro", "is": "above", "value": 1.0, "blocks": "short",
-           "note": "Don't short oil while macro is strongly bullish."},
-          {"if_theme": "geopolitics", "is": "above", "value": 1.5, "blocks": "short",
-           "note": "Don't short into a strong geopolitical risk-on tape."},
-          {"if_theme": "geopolitics", "is": "below", "value": -1.5, "blocks": "long",
-           "note": "Don't long into geopolitical risk-off (e.g. ceasefire, sanctions lifted)."}
+          {
+            "if_theme": "macro",
+            "is": "below",
+            "value": -1.0,
+            "blocks": "long",
+            "note": "Don't long oil while macro is strongly bearish (recession / dollar-strength)."
+          },
+          {
+            "if_theme": "macro",
+            "is": "above",
+            "value": 1.0,
+            "blocks": "short",
+            "note": "Don't short oil while macro is strongly bullish."
+          },
+          {
+            "if_theme": "geopolitics",
+            "is": "above",
+            "value": 1.5,
+            "blocks": "short",
+            "note": "Don't short into a strong geopolitical risk-on tape."
+          },
+          {
+            "if_theme": "geopolitics",
+            "is": "below",
+            "value": -1.5,
+            "blocks": "long",
+            "note": "Don't long into geopolitical risk-off (e.g. ceasefire, sanctions lifted)."
+          }
         ]
       }
     },
     {
       "name": "brent_outright",
-      "instrument": {"type": "outright", "symbol": "Brent"},
+      "instrument": {
+        "type": "outright",
+        "symbol": "Brent"
+      },
       "book_capital": 40000.0,
       "entry_threshold_long": 0.2,
       "entry_threshold_short": -0.2,
@@ -59,14 +85,34 @@
           "other": 0.5
         },
         "theme_vetoes": [
-          {"if_theme": "macro", "is": "below", "value": -2.0, "blocks": "long",
-           "note": "Brent is more globally driven and less rate-sensitive than WTI; only veto on extreme macro bearishness."},
-          {"if_theme": "macro", "is": "above", "value": 2.0, "blocks": "short",
-           "note": "Brent: only veto shorts on extreme macro bullishness."},
-          {"if_theme": "geopolitics", "is": "above", "value": 1.5, "blocks": "short",
-           "note": "Don't short into a strong geopolitical risk-on tape."},
-          {"if_theme": "geopolitics", "is": "below", "value": -1.5, "blocks": "long",
-           "note": "Don't long into geopolitical risk-off."}
+          {
+            "if_theme": "macro",
+            "is": "below",
+            "value": -2.0,
+            "blocks": "long",
+            "note": "Brent is more globally driven and less rate-sensitive than WTI; only veto on extreme macro bearishness."
+          },
+          {
+            "if_theme": "macro",
+            "is": "above",
+            "value": 2.0,
+            "blocks": "short",
+            "note": "Brent: only veto shorts on extreme macro bullishness."
+          },
+          {
+            "if_theme": "geopolitics",
+            "is": "above",
+            "value": 1.5,
+            "blocks": "short",
+            "note": "Don't short into a strong geopolitical risk-on tape."
+          },
+          {
+            "if_theme": "geopolitics",
+            "is": "below",
+            "value": -1.5,
+            "blocks": "long",
+            "note": "Don't long into geopolitical risk-off."
+          }
         ]
       }
     },
@@ -98,10 +144,20 @@
           "other": 0.2
         },
         "theme_vetoes": [
-          {"if_theme": "geopolitics", "is": "above", "value": 1.5, "blocks": "short",
-           "note": "Spread is geopolitics-heavy; do not short into a risk-on tape."},
-          {"if_theme": "geopolitics", "is": "below", "value": -1.5, "blocks": "long",
-           "note": "Do not long Brent-over-WTI when the geopolitics premium is collapsing."}
+          {
+            "if_theme": "geopolitics",
+            "is": "above",
+            "value": 1.5,
+            "blocks": "short",
+            "note": "Spread is geopolitics-heavy; do not short into a risk-on tape."
+          },
+          {
+            "if_theme": "geopolitics",
+            "is": "below",
+            "value": -1.5,
+            "blocks": "long",
+            "note": "Do not long Brent-over-WTI when the geopolitics premium is collapsing."
+          }
         ]
       }
     },
@@ -133,10 +189,20 @@
           "other": 0.3
         },
         "theme_vetoes": [
-          {"if_theme": "inventories", "is": "above", "value": 1.0, "blocks": "long",
-           "note": "Don't long the gasoline crack while product inventories are clearly building."},
-          {"if_theme": "inventories", "is": "below", "value": -1.0, "blocks": "short",
-           "note": "Don't short the gasoline crack while product inventories are clearly drawing."}
+          {
+            "if_theme": "inventories",
+            "is": "above",
+            "value": 1.0,
+            "blocks": "long",
+            "note": "Don't long the gasoline crack while product inventories are clearly building."
+          },
+          {
+            "if_theme": "inventories",
+            "is": "below",
+            "value": -1.0,
+            "blocks": "short",
+            "note": "Don't short the gasoline crack while product inventories are clearly drawing."
+          }
         ]
       }
     },
@@ -168,10 +234,125 @@
           "other": 0.3
         },
         "theme_vetoes": [
-          {"if_theme": "inventories", "is": "above", "value": 1.0, "blocks": "long",
-           "note": "Don't long the diesel crack while product inventories are clearly building."},
-          {"if_theme": "inventories", "is": "below", "value": -1.0, "blocks": "short",
-           "note": "Don't short the diesel crack while product inventories are clearly drawing."}
+          {
+            "if_theme": "inventories",
+            "is": "above",
+            "value": 1.0,
+            "blocks": "long",
+            "note": "Don't long the diesel crack while product inventories are clearly building."
+          },
+          {
+            "if_theme": "inventories",
+            "is": "below",
+            "value": -1.0,
+            "blocks": "short",
+            "note": "Don't short the diesel crack while product inventories are clearly drawing."
+          }
+        ]
+      }
+    },
+    {
+      "name": "gasoline_outright",
+      "instrument": {
+        "type": "outright",
+        "symbol": "RBOB_BBL"
+      },
+      "book_capital": 30000.0,
+      "entry_threshold_long": 0.2,
+      "entry_threshold_short": -0.2,
+      "strong_entry_threshold_long": 0.6,
+      "strong_entry_threshold_short": -0.6,
+      "base_position": 1.0,
+      "strong_position": 2.0,
+      "max_abs_position": 2.0,
+      "scoring": {
+        "use_themes": true,
+        "theme_weights": {
+          "supply": 0.6,
+          "demand": 1.4,
+          "inventories": 1.0,
+          "macro": 0.7,
+          "geopolitics": 0.7,
+          "other": 0.4
+        },
+        "theme_vetoes": [
+          {
+            "if_theme": "inventories",
+            "is": "above",
+            "value": 1.0,
+            "blocks": "long",
+            "note": "Don't long gasoline outright while gasoline inventories are clearly building."
+          },
+          {
+            "if_theme": "inventories",
+            "is": "below",
+            "value": -1.0,
+            "blocks": "short",
+            "note": "Don't short gasoline outright while gasoline inventories are clearly drawing."
+          },
+          {
+            "if_theme": "macro",
+            "is": "below",
+            "value": -1.0,
+            "blocks": "long",
+            "note": "Don't long gasoline into a strongly bearish macro tape (recession / consumer weakness)."
+          }
+        ]
+      }
+    },
+    {
+      "name": "diesel_outright",
+      "instrument": {
+        "type": "outright",
+        "symbol": "ULSD_BBL"
+      },
+      "book_capital": 30000.0,
+      "entry_threshold_long": 0.2,
+      "entry_threshold_short": -0.2,
+      "strong_entry_threshold_long": 0.6,
+      "strong_entry_threshold_short": -0.6,
+      "base_position": 1.0,
+      "strong_position": 2.0,
+      "max_abs_position": 2.0,
+      "scoring": {
+        "use_themes": true,
+        "theme_weights": {
+          "supply": 0.6,
+          "demand": 1.3,
+          "inventories": 1.0,
+          "macro": 1.0,
+          "geopolitics": 0.7,
+          "other": 0.4
+        },
+        "theme_vetoes": [
+          {
+            "if_theme": "inventories",
+            "is": "above",
+            "value": 1.0,
+            "blocks": "long",
+            "note": "Don't long diesel outright while distillate inventories are clearly building."
+          },
+          {
+            "if_theme": "inventories",
+            "is": "below",
+            "value": -1.0,
+            "blocks": "short",
+            "note": "Don't short diesel outright while distillate inventories are clearly drawing."
+          },
+          {
+            "if_theme": "macro",
+            "is": "below",
+            "value": -1.0,
+            "blocks": "long",
+            "note": "Don't long diesel into a strongly bearish macro / industrial tape \u2014 diesel is freight-driven."
+          },
+          {
+            "if_theme": "macro",
+            "is": "above",
+            "value": 1.0,
+            "blocks": "short",
+            "note": "Don't short diesel into a strongly bullish macro tape."
+          }
         ]
       }
     }
