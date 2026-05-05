@@ -114,3 +114,19 @@ CREATE TABLE IF NOT EXISTS market_prices (
     volume REAL,
     PRIMARY KEY (price_time, symbol)
 );
+
+CREATE TABLE IF NOT EXISTS daily_regimes (
+    regime_date DATE NOT NULL,
+    symbol TEXT NOT NULL,
+    close REAL,
+    rsi14 REAL,
+    adx14 REAL,
+    atr14 REAL,
+    atr_ratio REAL,
+    bb_pctb REAL,
+    sma50 REAL,
+    sma50_slope_5d_pct REAL,
+    regime_tags TEXT NOT NULL,
+    primary_regime TEXT NOT NULL,
+    PRIMARY KEY (regime_date, symbol)
+);
