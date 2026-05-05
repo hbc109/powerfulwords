@@ -79,6 +79,15 @@ def load_prices() -> pd.DataFrame:
     """)
 
 
+def load_regimes() -> pd.DataFrame:
+    return load_df("""
+        SELECT regime_date, symbol, primary_regime, regime_tags, regime_streak,
+               close, rsi14, adx14, bb_pctb, atr_ratio
+        FROM daily_regimes
+        ORDER BY regime_date DESC, symbol
+    """)
+
+
 def load_research_payload():
     research_dir = BASE_DIR / "data" / "processed" / "research"
     if not research_dir.exists():
@@ -185,6 +194,7 @@ if not DB_PATH.exists():
 scores = load_scores()
 theme_scores = load_theme_scores()
 events = load_events()
+regimes = load_regimes()
 
 if scores.empty:
     st.warning("No scores found in database.")
@@ -648,6 +658,50 @@ classification matches the source.
         if not theme_scores.empty
         else pd.DataFrame()
     )
+
+    st.subheader(f"Price regime on {selected_date}")
+    if regimes.empty:
+        st.write("No regime data yet — run `python scripts/compute_regimes.py`.")
+    else:
+        regimes["regime_date"] = regimes["regime_date"].astype(str)
+        day_regimes = regimes[regimes["regime_date"] == selected_date].copy()
+        if day_regimes.empty:
+            # fall back to the closest prior date so the panel is rarely empty
+            prior = regimes[regimes["regime_date"] <= selected_date]
+            if not prior.empty:
+                latest_avail = prior["regime_date"].iloc[0]
+                day_regimes = regimes[regimes["regime_date"] == latest_avail].copy()
+                st.caption(f"No regime row for {selected_date}; showing nearest prior {latest_avail}.")
+        if day_regimes.empty:
+            st.write("No prior regime data available.")
+        else:
+            cols = st.columns(len(day_regimes))
+            color = {
+                "shock":          "#d62728",
+                "stretched_up":   "#ff7f0e",
+                "stretched_down": "#ff7f0e",
+                "trend_up":       "#2ca02c",
+                "trend_down":     "#9467bd",
+                "range":          "#7f7f7f",
+            }
+            for col, (_, r) in zip(cols, day_regimes.iterrows()):
+                with col:
+                    c = color.get(r["primary_regime"], "#7f7f7f")
+                    st.markdown(
+                        f"<div style='border-left: 6px solid {c}; padding-left: 8px;'>"
+                        f"<b>{r['symbol']}</b><br/>"
+                        f"<span style='color:{c}'><b>{r['primary_regime']}</b></span> "
+                        f"<small>(streak {int(r['regime_streak'])}d)</small></div>",
+                        unsafe_allow_html=True,
+                    )
+                    st.caption(
+                        f"close {r['close']:.2f} · RSI {r['rsi14']:.1f} · "
+                        f"ADX {r['adx14']:.1f} · %B {r['bb_pctb']:.2f} · "
+                        f"ATRr {r['atr_ratio']:.2f}"
+                    )
+                    if r["regime_tags"] and r["regime_tags"] != r["primary_regime"]:
+                        st.caption(f"all tags: {r['regime_tags']}")
+
     st.subheader("Themes")
     if day_themes.empty:
         st.write("No theme rollup for selected date.")
