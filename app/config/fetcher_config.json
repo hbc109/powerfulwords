@@ -11,7 +11,7 @@
         "source_id": "reddit_oil",
         "source_bucket": "social_open",
         "listing": "new",
-        "limit": 15
+        "limit": 40
       }
     },
     {
@@ -23,7 +23,7 @@
         "source_id": "reddit_oil",
         "source_bucket": "social_open",
         "listing": "new",
-        "limit": 10
+        "limit": 25
       }
     },
     {
@@ -35,7 +35,7 @@
         "source_id": "reddit_oil",
         "source_bucket": "social_open",
         "listing": "new",
-        "limit": 15
+        "limit": 40
       }
     },
     {
@@ -47,7 +47,7 @@
         "source_id": "reddit_oil",
         "source_bucket": "social_open",
         "listing": "new",
-        "limit": 15
+        "limit": 40
       }
     },
     {
@@ -59,7 +59,7 @@
         "source_id": "reddit_oil",
         "source_bucket": "social_open",
         "listing": "new",
-        "limit": 15
+        "limit": 25
       }
     },
     {
@@ -71,7 +71,7 @@
         "source_id": "reddit_oil",
         "source_bucket": "social_open",
         "query": "oil OR brent OR WTI OR OPEC OR crude OR shale OR refinery OR USO OR XOM OR Aramco OR petroleum",
-        "limit": 20
+        "limit": 40
       }
     },
     {
@@ -83,7 +83,7 @@
         "source_id": "reddit_oil",
         "source_bucket": "social_open",
         "query": "oil OR brent OR WTI OR OPEC OR crude OR shale OR refinery OR Aramco OR petroleum",
-        "limit": 20
+        "limit": 40
       }
     },
     {
@@ -95,7 +95,7 @@
         "source_id": "reddit_oil",
         "source_bucket": "social_open",
         "query": "oil OR crude OR OPEC OR brent OR WTI OR refinery OR Aramco",
-        "limit": 20
+        "limit": 40
       }
     },
     {
@@ -107,7 +107,7 @@
         "source_id": "reddit_oil",
         "source_bucket": "social_open",
         "query": "oil OR crude OR OPEC OR Hormuz OR sanctions OR pipeline OR refinery",
-        "limit": 15
+        "limit": 25
       }
     },
     {
@@ -119,7 +119,7 @@
         "source_id": "reddit_oil",
         "source_bucket": "social_open",
         "query": "Exxon OR Chevron OR Shell OR ConocoPhillips OR TotalEnergies OR Vitol OR Trafigura OR Glencore OR Mercuria OR Gunvor OR XOM OR CVX OR COP",
-        "limit": 20
+        "limit": 40
       }
     },
     {
@@ -131,7 +131,7 @@
         "source_id": "reddit_oil",
         "source_bucket": "social_open",
         "query": "Exxon OR Chevron OR Shell OR ConocoPhillips OR TotalEnergies OR Petrobras OR Vitol OR Trafigura OR Glencore",
-        "limit": 20
+        "limit": 40
       }
     },
     {
@@ -143,7 +143,7 @@
         "source_id": "reddit_oil",
         "source_bucket": "social_open",
         "query": "CFTC OR \"managed money\" OR \"hedge fund\" OR \"commodity fund\"",
-        "limit": 15
+        "limit": 25
       }
     },
     {
@@ -155,7 +155,7 @@
         "source_id": "reddit_oil",
         "source_bucket": "social_open",
         "query": "oil OR Exxon OR Chevron OR Shell OR Petrobras OR Aramco OR refinery",
-        "limit": 15
+        "limit": 25
       }
     },
     {
@@ -167,10 +167,9 @@
         "source_id": "reddit_oil",
         "source_bucket": "social_open",
         "query": "oil OR crude OR commodity OR commodities OR CTA",
-        "limit": 15
+        "limit": 25
       }
     },
-
     {
       "name": "stocktwits_cl",
       "type": "stocktwits",
@@ -231,7 +230,6 @@
         "limit": 30
       }
     },
-
     {
       "name": "bluesky_oil_market",
       "type": "bluesky",
@@ -375,7 +373,6 @@
         "limit": 100
       }
     },
-
     {
       "name": "hn_crude_oil",
       "type": "hackernews",
@@ -385,7 +382,7 @@
         "source_id": "hackernews_energy",
         "source_bucket": "social_open",
         "limit": 30,
-        "min_points": 3
+        "min_points": 1
       }
     },
     {
@@ -397,7 +394,7 @@
         "source_id": "hackernews_energy",
         "source_bucket": "social_open",
         "limit": 30,
-        "min_points": 3
+        "min_points": 1
       }
     },
     {
@@ -409,7 +406,7 @@
         "source_id": "hackernews_energy",
         "source_bucket": "social_open",
         "limit": 30,
-        "min_points": 3
+        "min_points": 1
       }
     },
     {
@@ -421,7 +418,7 @@
         "source_id": "hackernews_energy",
         "source_bucket": "social_open",
         "limit": 20,
-        "min_points": 3
+        "min_points": 1
       }
     },
     {
@@ -433,7 +430,7 @@
         "source_id": "hackernews_energy",
         "source_bucket": "social_open",
         "limit": 20,
-        "min_points": 3
+        "min_points": 1
       }
     },
     {
@@ -445,7 +442,7 @@
         "source_id": "hackernews_energy",
         "source_bucket": "social_open",
         "limit": 20,
-        "min_points": 5
+        "min_points": 1
       }
     },
     {
@@ -457,7 +454,7 @@
         "source_id": "hackernews_energy",
         "source_bucket": "social_open",
         "limit": 20,
-        "min_points": 3
+        "min_points": 1
       }
     },
     {
@@ -469,7 +466,7 @@
         "source_id": "hackernews_energy",
         "source_bucket": "social_open",
         "limit": 20,
-        "min_points": 3
+        "min_points": 1
       }
     },
     {
@@ -481,7 +478,7 @@
         "source_id": "hackernews_energy",
         "source_bucket": "social_open",
         "limit": 20,
-        "min_points": 10
+        "min_points": 3
       }
     },
     {
@@ -493,7 +490,7 @@
         "source_id": "hackernews_energy",
         "source_bucket": "social_open",
         "limit": 20,
-        "min_points": 3
+        "min_points": 1
       }
     },
     {
@@ -505,7 +502,7 @@
         "source_id": "hackernews_energy",
         "source_bucket": "social_open",
         "limit": 20,
-        "min_points": 3
+        "min_points": 1
       }
     },
     {
@@ -517,7 +514,7 @@
         "source_id": "hackernews_energy",
         "source_bucket": "social_open",
         "limit": 20,
-        "min_points": 3
+        "min_points": 1
       }
     },
     {
@@ -529,7 +526,7 @@
         "source_id": "hackernews_energy",
         "source_bucket": "social_open",
         "limit": 20,
-        "min_points": 3
+        "min_points": 1
       }
     },
     {
@@ -541,10 +538,9 @@
         "source_id": "hackernews_energy",
         "source_bucket": "social_open",
         "limit": 20,
-        "min_points": 3
+        "min_points": 1
       }
     },
-
     {
       "name": "eia_twip",
       "type": "rss",
@@ -757,7 +753,6 @@
         "min_chars": 80
       }
     },
-
     {
       "name": "opec_press",
       "type": "opec_press",
@@ -800,6 +795,52 @@
         "source_id": "spa_saudi",
         "source_bucket": "official_data",
         "limit": 10
+      }
+    },
+    {
+      "name": "reddit_economy",
+      "type": "reddit",
+      "enabled": true,
+      "params": {
+        "subreddit": "economy",
+        "source_id": "reddit_oil",
+        "source_bucket": "social_open",
+        "query": "oil OR crude OR OPEC OR brent OR WTI OR gasoline OR petroleum OR refinery",
+        "limit": 25
+      }
+    },
+    {
+      "name": "reddit_commoditytrading",
+      "type": "reddit",
+      "enabled": true,
+      "params": {
+        "subreddit": "commoditytrading",
+        "source_id": "reddit_oil",
+        "source_bucket": "social_open",
+        "listing": "new",
+        "limit": 25
+      }
+    },
+    {
+      "name": "bluesky_gasoline",
+      "type": "bluesky",
+      "enabled": true,
+      "params": {
+        "query": "\"gasoline prices\" OR \"gasoline demand\"",
+        "source_id": "bluesky_energy",
+        "source_bucket": "social_open",
+        "limit": 100
+      }
+    },
+    {
+      "name": "bluesky_diesel",
+      "type": "bluesky",
+      "enabled": true,
+      "params": {
+        "query": "\"diesel demand\" OR distillate OR \"jet fuel\"",
+        "source_id": "bluesky_energy",
+        "source_bucket": "social_open",
+        "limit": 100
       }
     }
   ]
