@@ -1117,7 +1117,15 @@ actually predict price moves? Two studies live here:
                     alt.Chart(sym_hist)
                     .mark_line(point=True)
                     .encode(
-                        x=alt.X("run_date:T", title="Snapshot date"),
+                        x=alt.X(
+                            "run_date:T",
+                            title="Analysis run date",
+                            axis=alt.Axis(
+                                format="%Y-%m-%d",
+                                labelAngle=-30,
+                                tickCount="day",
+                            ),
+                        ),
                         y=alt.Y("hit_rate_5d:Q",
                                 scale=alt.Scale(domain=[0, 1]),
                                 title="Hit rate 5d"),
