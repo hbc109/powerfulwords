@@ -1,7 +1,7 @@
 import json
 import sqlite3
 import sys
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 import altair as alt
@@ -88,17 +88,49 @@ def load_regimes() -> pd.DataFrame:
     """)
 
 
-def load_research_payload():
+def load_research_payload(symbol: str = "WTI", commodity: str = "crude_oil"):
+    """Load the event-study JSON for a specific symbol; fall back to any
+    available file if the requested one is missing."""
     research_dir = BASE_DIR / "data" / "processed" / "research"
     if not research_dir.exists():
-        return None
+        return None, None
+    target = research_dir / f"event_study_{commodity}_{symbol}.json"
+    if target.exists():
+        try:
+            data = json.loads(target.read_text(encoding="utf-8"))
+            mtime = target.stat().st_mtime
+            return data, mtime
+        except Exception:
+            return None, None
     files = sorted(research_dir.glob("event_study_*.json"))
     if not files:
-        return None
+        return None, None
     try:
-        return json.loads(files[-1].read_text(encoding="utf-8"))
+        data = json.loads(files[-1].read_text(encoding="utf-8"))
+        return data, files[-1].stat().st_mtime
     except Exception:
-        return None
+        return None, None
+
+
+def list_research_symbols(commodity: str = "crude_oil") -> list[str]:
+    research_dir = BASE_DIR / "data" / "processed" / "research"
+    if not research_dir.exists():
+        return []
+    prefix = f"event_study_{commodity}_"
+    return sorted(
+        f.name.replace(prefix, "").replace(".json", "")
+        for f in research_dir.glob(f"{prefix}*.json")
+    )
+
+
+def load_event_study_history():
+    csv_path = BASE_DIR / "data" / "processed" / "research" / "event_study_history.csv"
+    if not csv_path.exists():
+        return pd.DataFrame()
+    try:
+        return pd.read_csv(csv_path)
+    except Exception:
+        return pd.DataFrame()
 
 
 def load_backtest_payload():
@@ -897,42 +929,211 @@ Stacked bar for the picked date only:
         st.altair_chart(stack, use_container_width=True)
 
 with tab2:
-    st.subheader("Research Snapshot")
-    research_payload = load_research_payload()
+    with st.expander("📖 What this tab shows / how to read the numbers", expanded=False):
+        st.markdown("""
+This is the **empirical validation layer** — does the narrative score
+actually predict price moves? Two studies live here:
+
+1. **Unconditional event study** — group all score-dates by the
+   narrative bucket they fall into (`strong_bullish`, `bullish`,
+   `neutral`, `bearish`, `strong_bearish`) and measure forward returns
+   over horizons (1, 3, 5, 10 trading days). The headline metrics:
+   - **count** — how many score-dates landed in this bucket. N < 30
+     is suggestive; N > 100 is robust.
+   - **hit_rate_<H>d** — fraction of cases where price moved the
+     direction the narrative implied (up for bullish, down for bearish).
+     **50% is random.** Above 50% = signal in the predicted direction.
+     Far below 50% = systematically wrong (and itself a fade signal).
+   - **avg_fwd_ret_<H>d** — mean forward return across the bucket
+     samples (positive number = price up on average).
+
+2. **Conditional event study (regime × narrative bucket)** — the same
+   buckets, but split by the *price regime* on the score-date
+   (trend_up / trend_down / range / stretched_up / stretched_down /
+   shock). This is where the **narrative-as-regime-tracker** finding
+   gets quantified: bullish chatter in a clean uptrend ≠ bullish
+   chatter at a stretched top.
+
+3. **History panel** (when ≥2 weekly snapshots exist): how each
+   bucket's hit rate has evolved across `event_study_history.csv`.
+   A pattern stable across 6+ snapshots is more credible than one
+   that just appeared this week.
+
+**Key cautions:**
+- The `bucket` is set by the narrative score thresholds in
+  `strategy_config.json` — not regime-aware.
+- A score date with no regime data (early history before regime
+  computation) is dropped from the conditional study only.
+- This is **not** a trading strategy — it's a diagnostic on the
+  signal. The trading layer (Backtest / Multi-book tabs) applies
+  thresholds, position sizing, and vetoes on top.
+""")
+
+    symbols = list_research_symbols() or ["WTI"]
+    sym_default = symbols.index("WTI") if "WTI" in symbols else 0
+    chosen_symbol = st.selectbox("Symbol", symbols, index=sym_default, key="research_symbol")
+    research_payload, payload_mtime = load_research_payload(chosen_symbol)
 
     if not research_payload:
-        st.write("No research payload found.")
+        st.write(f"No research payload for {chosen_symbol}. "
+                 f"Run `python scripts/run_event_study.py --symbol {chosen_symbol}`.")
     else:
-        st.write("Latest event study file loaded.")
+        bucket_summary = research_payload.get("bucket_summary", {}) or {}
+        sample_size = research_payload.get("sample_size") or sum(
+            int(s.get("count") or 0) for s in bucket_summary.values()
+        )
+        last_updated = (
+            datetime.fromtimestamp(payload_mtime).strftime("%Y-%m-%d %H:%M")
+            if payload_mtime else "—"
+        )
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Samples", sample_size)
+        m2.metric("Buckets", len(bucket_summary))
+        m3.metric("Last updated", last_updated)
 
-        if "symbol" in research_payload:
-            st.write(f"Symbol: {research_payload['symbol']}")
-        if "commodity" in research_payload:
-            st.write(f"Commodity: {research_payload['commodity']}")
-        if "num_samples" in research_payload:
-            st.write(f"Samples: {research_payload['num_samples']}")
-
-        bucket_summary = research_payload.get("bucket_summary", {})
-        if bucket_summary:
+        # ---- Unconditional bucket summary: chart + table ----
+        st.subheader("Unconditional bucket summary")
+        if not bucket_summary:
+            st.write("No bucket summary in payload.")
+        else:
+            order = ["strong_bullish", "bullish", "neutral", "bearish", "strong_bearish"]
             rows = []
-            for bucket, stats in bucket_summary.items():
-                rows.append(
-                    {
+            for bucket in order:
+                stats = bucket_summary.get(bucket)
+                if not stats:
+                    continue
+                row = {"bucket": bucket, "count": stats.get("count")}
+                for h in (1, 3, 5, 10):
+                    row[f"hit_rate_{h}d"] = stats.get(f"hit_rate_{h}d")
+                    row[f"avg_fwd_ret_{h}d"] = stats.get(f"avg_fwd_ret_{h}d")
+                rows.append(row)
+            df = pd.DataFrame(rows)
+
+            chart_df = df[["bucket", "hit_rate_5d", "count"]].copy()
+            chart_df["bucket"] = pd.Categorical(chart_df["bucket"], categories=order, ordered=True)
+            chart_df["low_n"] = chart_df["count"] < 30
+            bars = (
+                alt.Chart(chart_df)
+                .mark_bar()
+                .encode(
+                    x=alt.X("bucket:N", sort=order, title=None),
+                    y=alt.Y("hit_rate_5d:Q", title="Hit rate at 5d", scale=alt.Scale(domain=[0, 1])),
+                    color=alt.Color(
+                        "hit_rate_5d:Q",
+                        scale=alt.Scale(scheme="redblue", domain=[0, 1], domainMid=0.5),
+                        legend=None,
+                    ),
+                    tooltip=["bucket", "hit_rate_5d", "count"],
+                )
+            )
+            ref_line = alt.Chart(pd.DataFrame({"y": [0.5]})).mark_rule(
+                strokeDash=[4, 4], color="#888"
+            ).encode(y="y:Q")
+            n_text = (
+                alt.Chart(chart_df)
+                .mark_text(dy=-6, color="#444", fontSize=11)
+                .encode(
+                    x=alt.X("bucket:N", sort=order),
+                    y="hit_rate_5d:Q",
+                    text=alt.Text("count:Q"),
+                )
+            )
+            st.altair_chart(bars + ref_line + n_text, use_container_width=True)
+            st.caption("Dashed line = 50% (random). Numbers above bars = N. Buckets with N<30 are suggestive only.")
+            st.dataframe(df, width="stretch", hide_index=True)
+
+        # ---- Conditional study: regime × bucket ----
+        cond = research_payload.get("conditional")
+        if cond and cond.get("by_regime"):
+            st.subheader("Conditional study — regime × narrative bucket")
+            regime_order = ["trend_up", "trend_down", "range", "stretched_up", "stretched_down", "shock"]
+            bucket_order = ["strong_bullish", "bullish", "neutral", "bearish", "strong_bearish"]
+            cells = []
+            for regime, by_bucket in cond["by_regime"].items():
+                for bucket, stats in by_bucket.items():
+                    cells.append({
+                        "regime": regime,
                         "bucket": bucket,
                         "count": stats.get("count"),
-                        "avg_fwd_ret_1d": stats.get("avg_fwd_ret_1d"),
-                        "hit_rate_1d": stats.get("hit_rate_1d"),
-                        "avg_fwd_ret_3d": stats.get("avg_fwd_ret_3d"),
-                        "hit_rate_3d": stats.get("hit_rate_3d"),
-                        "avg_fwd_ret_5d": stats.get("avg_fwd_ret_5d"),
                         "hit_rate_5d": stats.get("hit_rate_5d"),
-                        "avg_fwd_ret_10d": stats.get("avg_fwd_ret_10d"),
-                        "hit_rate_10d": stats.get("hit_rate_10d"),
-                    }
+                        "avg_fwd_ret_5d": stats.get("avg_fwd_ret_5d"),
+                    })
+            cond_df = pd.DataFrame(cells)
+            heat = (
+                alt.Chart(cond_df)
+                .mark_rect()
+                .encode(
+                    x=alt.X("bucket:N", sort=bucket_order, title="Narrative bucket"),
+                    y=alt.Y("regime:N", sort=regime_order, title="Price regime"),
+                    color=alt.Color(
+                        "hit_rate_5d:Q",
+                        scale=alt.Scale(scheme="redblue", domain=[0, 1], domainMid=0.5),
+                        title="Hit rate 5d",
+                    ),
+                    tooltip=["regime", "bucket", "count", "hit_rate_5d", "avg_fwd_ret_5d"],
                 )
-            st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
+                .properties(height=alt.Step(40))
+            )
+            text = (
+                alt.Chart(cond_df)
+                .mark_text(fontSize=11, color="#000")
+                .encode(
+                    x=alt.X("bucket:N", sort=bucket_order),
+                    y=alt.Y("regime:N", sort=regime_order),
+                    text=alt.Text("count:Q"),
+                )
+            )
+            st.altair_chart(heat + text, use_container_width=True)
+            st.caption(
+                "Cells show **count** of score-dates falling in that (regime, bucket). "
+                "Color = hit rate at 5d (blue = predictive, red = inverse). "
+                f"Total samples: {sum(c['count'] or 0 for c in cells)}. "
+                f"Skipped (no regime data): {cond.get('skipped_no_regime', 0)}."
+            )
+            with st.expander("See full conditional table"):
+                st.dataframe(cond_df.sort_values(["regime", "bucket"]),
+                             width="stretch", hide_index=True)
         else:
-            st.write("No bucket summary available.")
+            st.info(
+                "Conditional study not available in this payload. "
+                "Re-run `python scripts/run_event_study.py --symbol "
+                f"{chosen_symbol}` to regenerate."
+            )
+
+        # ---- History panel ----
+        history_df = load_event_study_history()
+        if not history_df.empty:
+            st.subheader("Hit-rate evolution across weekly snapshots")
+            sym_hist = history_df[history_df["symbol"] == chosen_symbol].copy()
+            if sym_hist.empty:
+                st.write(f"No history rows for {chosen_symbol} yet.")
+            elif sym_hist["run_date"].nunique() < 2:
+                st.write(
+                    f"Only {sym_hist['run_date'].nunique()} weekly snapshot so far. "
+                    "More snapshots accumulate every Sunday at 02:30."
+                )
+            else:
+                line = (
+                    alt.Chart(sym_hist)
+                    .mark_line(point=True)
+                    .encode(
+                        x=alt.X("run_date:T", title="Snapshot date"),
+                        y=alt.Y("hit_rate_5d:Q",
+                                scale=alt.Scale(domain=[0, 1]),
+                                title="Hit rate 5d"),
+                        color=alt.Color("bucket:N", title="Bucket"),
+                        tooltip=["run_date", "bucket", "hit_rate_5d", "count"],
+                    )
+                )
+                ref = alt.Chart(pd.DataFrame({"y": [0.5]})).mark_rule(
+                    strokeDash=[4, 4], color="#888"
+                ).encode(y="y:Q")
+                st.altair_chart(line + ref, use_container_width=True)
+                st.caption(
+                    "Each line = one bucket's hit rate over weekly reruns. "
+                    "Patterns stable across many snapshots are more credible than "
+                    "ones that just appeared in the latest run."
+                )
 
 with tab3:
     st.subheader("Backtest Snapshot")

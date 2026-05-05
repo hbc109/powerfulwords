@@ -12,7 +12,7 @@ import json
 from pathlib import Path
 
 from app.db.database import get_connection
-from app.research.event_study import run_event_study
+from app.research.event_study import run_event_study, run_conditional_event_study
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 
@@ -43,6 +43,20 @@ def fetch_scores(conn, commodity: str = "crude_oil"):
             }
         )
     return rows
+
+
+def fetch_regimes(conn, symbol: str):
+    cur = conn.execute(
+        '''
+        SELECT regime_date, primary_regime, regime_streak
+        FROM daily_regimes WHERE symbol = ? ORDER BY regime_date
+        ''',
+        (symbol,),
+    )
+    return [
+        {"regime_date": r[0], "primary_regime": r[1], "regime_streak": r[2]}
+        for r in cur.fetchall()
+    ]
 
 
 def fetch_prices(conn, symbol: str):
@@ -84,9 +98,17 @@ def main():
     conn = get_connection()
     scores = fetch_scores(conn, commodity=args.commodity)
     prices = fetch_prices(conn, symbol=args.symbol)
+    regimes = fetch_regimes(conn, symbol=args.symbol)
     conn.close()
 
     result = run_event_study(scores, prices, horizons)
+    if regimes:
+        result["conditional"] = run_conditional_event_study(
+            scores, prices, regimes, horizons
+        )
+        result["conditional_streak_3plus"] = run_conditional_event_study(
+            scores, prices, regimes, horizons, streak_min=3
+        )
 
     out_dir = BASE_DIR / "data" / "processed" / "research"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -98,6 +120,8 @@ def main():
     print("Bucket summary:")
     for k, v in result["bucket_summary"].items():
         print(k, v)
+    if "conditional" in result:
+        print(f"\nRegime distribution: {result['conditional']['regime_distribution']}")
 
 
 if __name__ == "__main__":
