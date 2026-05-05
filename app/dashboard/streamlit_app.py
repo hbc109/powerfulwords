@@ -165,6 +165,16 @@ def bias_label(score: float) -> str:
     return "Neutral"
 
 
+def tilt_label(direction: str) -> str:
+    """Map engine direction (LONG/SHORT/FLAT) to display-friendly tilt
+    wording. The score is a narrative bias, not a trade signal."""
+    return {
+        "LONG": "Bullish lean",
+        "SHORT": "Bearish lean",
+        "FLAT": "Neutral",
+    }.get(direction, direction)
+
+
 st.set_page_config(page_title="Oil Narrative Dashboard", layout="wide")
 st.title("Oil Narrative Dashboard")
 
@@ -233,7 +243,7 @@ c5.metric("Average Event Confidence", avg_conf)
 st.info(f"Main Sources: {main_sources}")
 
 tab_recs, tab_upload, tab1, tab_trends, tab2, tab3, tab_multi, tab_method = st.tabs(
-    ["Recommendations", "Upload", "Overview", "Trends", "Research", "Backtest", "Multi-book", "Methodology"]
+    ["Narrative Tilt", "Upload", "Overview", "Trends", "Research", "Backtest", "Multi-book", "Methodology"]
 )
 
 def _book_history_score(book_cfg, theme_scores_df, score_date_str):
@@ -267,24 +277,31 @@ def _book_history_score(book_cfg, theme_scores_df, score_date_str):
 
 
 with tab_recs:
-    st.subheader(f"Recommendations for {selected_date}")
+    st.subheader(f"Narrative tilt for {selected_date}")
+
+    st.info(
+        "These are **narrative-derived biases, not calibrated trade signals.** "
+        "Event-study work shows the score behaves as a *regime tracker* — "
+        "directionally right when the market trends with consensus, near-random "
+        "or wrong in sideways and shock regimes. Treat as an input, not an order."
+    )
 
     with st.expander("📖 How to read these scores", expanded=False):
         st.markdown(f"""
-**Direction** — what the book wants to do today: `LONG`, `SHORT`, or `FLAT`.
+**Tilt** — what the book's narrative reads today: `Bullish lean`, `Bearish lean`, or `Neutral`.
 
-**Position size** — `+2.0` strong, `+1.0` base, `0.0` flat. Same scale on the short side.
+**Tilt strength** — `+2.0` strong bullish lean, `+1.0` mild bullish lean, `0.0` neutral. Same scale on the bearish side.
 
 **Weighted score** — sum of (theme score × this book's theme weight) for today.
-This is what the entry thresholds compare against:
+This is what the tilt thresholds compare against:
 
-| Threshold | Position | Meaning |
+| Threshold | Strength | Meaning |
 |---|---|---|
-| ≥ {_THRESHOLDS['strong_long']:+.2f} | `+2.0` strong long | high-conviction long |
-| ≥ {_THRESHOLDS['long']:+.2f} | `+1.0` base long | mild long |
-| between | `0.0` flat | nothing decisive |
-| ≤ {_THRESHOLDS['short']:+.2f} | `−1.0` base short | mild short |
-| ≤ {_THRESHOLDS['strong_short']:+.2f} | `−2.0` strong short | high-conviction short |
+| ≥ {_THRESHOLDS['strong_long']:+.2f} | `+2.0` strong bullish lean | high-conviction bullish narrative |
+| ≥ {_THRESHOLDS['long']:+.2f} | `+1.0` mild bullish lean | mild bullish narrative |
+| between | `0.0` neutral | nothing decisive |
+| ≤ {_THRESHOLDS['short']:+.2f} | `−1.0` mild bearish lean | mild bearish narrative |
+| ≤ {_THRESHOLDS['strong_short']:+.2f} | `−2.0` strong bearish lean | high-conviction bearish narrative |
 
 **Z-score (σ)** — today's weighted score expressed as standard deviations above /
 below this book's recent (≤30-day) mean. `+0σ` = average day; `+2σ` =
@@ -341,20 +358,20 @@ firing flattens the position. Multiple themes (macro, geopolitics, inventories�
 can all be set up to veto, in either direction (`blocks: long` or `blocks: short`).
 
 **Suggested veto set in this config:**
-- **Macro long-veto** (WTI): macro ≤ −1.0 → no longs. Don't trade into a
-  recession-fear / dollar-strength regime even with bullish supply news.
-- **Macro short-veto** (WTI): macro ≥ +1.0 → no shorts. Mirror image.
+- **Macro bullish-lean veto** (WTI): macro ≤ −1.0 → no bullish lean. Don't lean
+  into a recession-fear / dollar-strength regime even with bullish supply news.
+- **Macro bearish-lean veto** (WTI): macro ≥ +1.0 → no bearish lean. Mirror image.
 - **Macro veto on Brent**: same idea but threshold widened to ±2.0 — Brent is
   more globally driven and less rate-sensitive than WTI, so only block on
   *extreme* macro readings.
 - **Geopolitics symmetric veto** (WTI, Brent, Brent-WTI spread): geopolitics
-  ≥ +1.5 → no shorts; ≤ −1.5 → no longs. Don't fade a strong geopolitical
-  risk premium build, and don't chase one as it collapses (e.g. on a
-  ceasefire or sanctions easing).
+  ≥ +1.5 → no bearish lean; ≤ −1.5 → no bullish lean. Don't fade a strong
+  geopolitical risk premium build, and don't chase one as it collapses
+  (e.g. on a ceasefire or sanctions easing).
 - **Inventories veto** (gasoline + diesel cracks only): inventories ≥ +1.0
-  → no long crack; ≤ −1.0 → no short crack. The crack lives or dies on
-  product–crude balance, so a clear product build/draw should override the
-  underlying narrative tilt.
+  → no bullish crack lean; ≤ −1.0 → no bearish crack lean. The crack lives or
+  dies on product–crude balance, so a clear product build/draw should override
+  the underlying narrative tilt.
 
 **Other vetoes worth considering** (not currently active):
 - **Source-divergence veto**: if chatter is wildly out of line with officials
@@ -395,7 +412,7 @@ the dashboard re-reads the config on each refresh.
                         f"<small>{instrument_label(r['instrument'])}</small></div>",
                         unsafe_allow_html=True,
                     )
-                    st.metric("Direction", r["direction"], delta=f"{r['target_position']:+.1f}")
+                    st.metric("Tilt", tilt_label(r["direction"]), delta=f"{r['target_position']:+.1f}")
 
                     # Raw weighted score + rolling z-score for context.
                     book_cfg = book_cfg_by_name.get(r["book"])
