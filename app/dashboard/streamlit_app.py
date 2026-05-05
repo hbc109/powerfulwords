@@ -788,6 +788,30 @@ classification matches the source.
         )
 
 with tab_trends:
+    with st.expander("📖 What this tab shows / how to read the charts", expanded=False):
+        st.markdown("""
+The **time-and-attribution view**. Overview tells you what's loud *today*;
+Trends tells you *when* themes were loud across the timeline, *how* the
+score related to price, and *who* is pushing each theme today.
+
+### Theme heatmap (top)
+- **x**: date · **y**: theme (supply / demand / geopolitics / macro / inventories / other) · **color**: theme-level `narrative_score` on a red-blue diverging scale (blue bullish, red bearish, white ≈ neutral).
+- Spot theme rotations at a glance — a long horizontal blue band = a persistent bullish theme.
+- Uses the **theme-level** rollup, not subtopics.
+
+### Narrative vs price (middle)
+Independent-axis overlay:
+- **Bars** = daily *net* narrative score (sum across themes). Blue = bullish day, red = bearish.
+- **Line** = close price for the symbol you pick (WTI / Brent / RBOB / ULSD).
+- Qualitative co-movement check — are bars and price aligned (narratives confirm trend) or fighting each other (regime mismatch)? Not a backtest; for that see the Research tab and the event study.
+
+### Source-bucket contribution (selected date) (bottom)
+Stacked bar for the picked date only:
+- **x**: theme · **y**: `direction × confidence` summed across events · **color**: source_bucket (official_data / official_reports / sellside_private / authoritative_news / social_open / ...)
+- For each theme, see which source types are pushing it. A theme tilted bullish but stacked entirely with `social_open` and no officials → speculative; the same tilt with `official_reports` + `authoritative_news` aligned → confirmed consensus.
+- **Caveat**: this chart uses *raw* `direction × confidence`, not the full `narrative_score` formula (no bucket weights / persistence / breadth / crowding). Intentional — it shows you the unfiltered source picture before the scorer's adjustments.
+""")
+
     st.subheader("Theme heatmap")
     if theme_scores.empty:
         st.write("No theme scores yet.")
