@@ -842,6 +842,97 @@
         "source_bucket": "social_open",
         "limit": 100
       }
+    },
+    {
+      "name": "xinhua_business",
+      "type": "rss",
+      "enabled": true,
+      "params": {
+        "feed_url": "https://www.xinhuanet.com/english/rss/businessrss.xml",
+        "source_id": "xinhua_business",
+        "source_bucket": "authoritative_news",
+        "limit": 25,
+        "follow_links": false,
+        "min_chars": 80
+      }
+    },
+    {
+      "name": "xinhua_world",
+      "type": "rss",
+      "enabled": true,
+      "params": {
+        "feed_url": "https://www.xinhuanet.com/english/rss/worldrss.xml",
+        "source_id": "xinhua_world",
+        "source_bucket": "authoritative_news",
+        "limit": 25,
+        "follow_links": false,
+        "min_chars": 80
+      }
+    },
+    {
+      "name": "tass_economy",
+      "type": "rss",
+      "enabled": true,
+      "params": {
+        "feed_url": "https://tass.com/rss/v2.xml?sections=MjE7Mw==",
+        "source_id": "tass_economy",
+        "source_bucket": "authoritative_news",
+        "limit": 25,
+        "follow_links": false,
+        "min_chars": 80
+      }
+    },
+    {
+      "name": "presstv_economy",
+      "type": "rss",
+      "enabled": true,
+      "params": {
+        "feed_url": "https://www.presstv.ir/rss.xml",
+        "source_id": "presstv_economy",
+        "source_bucket": "authoritative_news",
+        "limit": 25,
+        "follow_links": false,
+        "min_chars": 80
+      }
+    },
+    {
+      "name": "aljazeera_all",
+      "type": "rss",
+      "enabled": true,
+      "params": {
+        "feed_url": "https://www.aljazeera.com/xml/rss/all.xml",
+        "source_id": "aljazeera_all",
+        "source_bucket": "authoritative_news",
+        "limit": 25,
+        "follow_links": false,
+        "min_chars": 80
+      }
+    },
+    {
+      "name": "scmp_china",
+      "type": "rss",
+      "enabled": true,
+      "params": {
+        "feed_url": "https://www.scmp.com/rss/4/feed",
+        "source_id": "scmp_china",
+        "source_bucket": "authoritative_news",
+        "limit": 25,
+        "follow_links": false,
+        "min_chars": 80
+      }
+    },
+    {
+      "name": "nikkei_asia_business",
+      "type": "rss",
+      "enabled": true,
+      "params": {
+        "feed_url": "https://asia.nikkei.com/rss/feed/nar",
+        "source_id": "nikkei_asia_business",
+        "source_bucket": "authoritative_news",
+        "limit": 25,
+        "follow_links": false,
+        "min_chars": 80
+      }
     }
   ]
 }

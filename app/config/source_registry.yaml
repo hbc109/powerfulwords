@@ -1,312 +1,319 @@
 version: 1
 project: oil_narrative_engine
 commodity: crude_oil
-
 source_buckets:
-  - official_data
-  - official_reports
-  - institutional_public
-  - sellside_private
-  - authoritative_news
-  - social_open
-  - social_private_manual
-
-# Free-by-default registry. Paid sources (Argus, Platts, Energy Intelligence,
-# sell-side broker reports, Kpler, Vortexa) can be added as separate entries
-# when you have the rights to upload them. Drop the file in the matching
-# folder under data/inbox/ and ingest_folder.py will pick it up.
-
+- official_data
+- official_reports
+- institutional_public
+- sellside_private
+- authoritative_news
+- social_open
+- social_private_manual
 sources:
-  # --- Free official data ---
-  - source_id: eia_weekly_petroleum
-    source_name: EIA
-    source_bucket: official_data
-    access_mode: website_csv
-    cost_level: free
-    credibility_tier: 1
-    notes: U.S. Weekly Petroleum Status Report. Authoritative inventory data.
-
-  - source_id: eia_steo
-    source_name: EIA
-    source_bucket: official_reports
-    access_mode: website_pdf
-    cost_level: free
-    credibility_tier: 1
-    notes: Short-Term Energy Outlook (monthly forecast).
-
-  - source_id: iea_omr
-    source_name: IEA
-    source_bucket: official_reports
-    access_mode: website_pdf
-    cost_level: free
-    credibility_tier: 1
-    notes: Oil Market Report (monthly). Some content gated; use the public summary.
-
-  - source_id: opec_momr
-    source_name: OPEC
-    source_bucket: official_reports
-    access_mode: website_pdf
-    cost_level: free
-    credibility_tier: 1
-    notes: OPEC Monthly Oil Market Report and policy statements.
-
-  - source_id: opec_press_releases
-    source_name: OPEC
-    source_bucket: official_data
-    access_mode: website_html
-    cost_level: free
-    credibility_tier: 1
-    notes: OPEC+ press releases announcing quota and compliance decisions.
-
-  - source_id: ofac_announcements
-    source_name: OFAC
-    source_bucket: official_data
-    access_mode: website_html
-    cost_level: free
-    credibility_tier: 1
-    notes: U.S. Treasury sanctions designations and price-cap guidance.
-
-  - source_id: shana_iran
-    source_name: SHANA
-    source_bucket: official_data
-    access_mode: website_html
-    cost_level: free
-    credibility_tier: 2
-    notes: Iranian Oil Ministry news agency.
-
-  - source_id: spa_saudi
-    source_name: SPA
-    source_bucket: official_data
-    access_mode: website_html
-    cost_level: free
-    credibility_tier: 2
-    notes: Saudi Press Agency (official statements from the Kingdom).
-
-  - source_id: imf_weo
-    source_name: IMF
-    source_bucket: official_reports
-    access_mode: website_pdf
-    cost_level: free
-    credibility_tier: 1
-    notes: World Economic Outlook (macro context for oil demand).
-
-  - source_id: world_bank_commodity
-    source_name: World Bank
-    source_bucket: official_reports
-    access_mode: website_pdf
-    cost_level: free
-    credibility_tier: 1
-    notes: Commodity Markets Outlook.
-
-  # --- Free institutional / corporate ---
-  - source_id: producer_press_release
-    source_name: Producer Press Releases
-    source_bucket: institutional_public
-    access_mode: website_html
-    cost_level: free
-    credibility_tier: 2
-    notes: Aramco, Exxon, Shell, BP, Chevron, Reliance press releases and earnings calls.
-
-  - source_id: refiner_earnings
-    source_name: Refiner Earnings Calls
-    source_bucket: institutional_public
-    access_mode: manual_upload
-    cost_level: free
-    credibility_tier: 2
-    notes: Public earnings call transcripts revealing demand views ahead of agencies.
-
-  # --- Free authoritative news ---
-  - source_id: reuters_energy
-    source_name: Reuters
-    source_bucket: authoritative_news
-    access_mode: website_html
-    cost_level: free
-    credibility_tier: 2
-    notes: Reuters energy desk free articles.
-
-  - source_id: bloomberg_energy_free
-    source_name: Bloomberg
-    source_bucket: authoritative_news
-    access_mode: website_html
-    cost_level: free
-    credibility_tier: 2
-    notes: Bloomberg energy free tier headlines only; full terminal is paid.
-
-  # --- Sell-side / paid (manual upload, drop into data/inbox/sellside_private/) ---
-  - source_id: sellside_manual_upload
-    source_name: Sellside Reports Manual Upload
-    source_bucket: sellside_private
-    access_mode: manual_upload
-    cost_level: proprietary
-    credibility_tier: 2
-    notes: Generic bucket for GS / MS / BoA / Macq research. Only ingest documents you are authorized to use.
-
-  # --- Open social (free) ---
-  - source_id: x_open
-    source_name: X / Twitter
-    source_bucket: social_open
-    access_mode: manual_upload
-    cost_level: free
-    credibility_tier: 4
-    notes: Public X posts. Credibility varies wildly by account.
-
-  - source_id: reddit_oil
-    source_name: Reddit
-    source_bucket: social_open
-    access_mode: website_api
-    cost_level: free
-    credibility_tier: 5
-    notes: r/oil, r/oilandgasworkers, r/energy, r/commodities, r/EnergyTrading, plus keyword searches in r/wallstreetbets / r/StockMarket. Auto-fetched by app.fetchers.reddit.
-
-  - source_id: stocktwits_energy
-    source_name: StockTwits
-    source_bucket: social_open
-    access_mode: website_api
-    cost_level: free
-    credibility_tier: 5
-    notes: Public cashtag streams ($CL_F, $BZ_F, $USO, $XOM, $XLE). Bundled per-day per-symbol. Auto-fetched by app.fetchers.stocktwits.
-
-  - source_id: bluesky_energy
-    source_name: Bluesky
-    source_bucket: social_open
-    access_mode: website_api
-    cost_level: free
-    credibility_tier: 5
-    notes: Public AppView searchPosts API. Bundled per-day per-query. Auto-fetched by app.fetchers.bluesky.
-
-  - source_id: hackernews_energy
-    source_name: Hacker News
-    source_bucket: social_open
-    access_mode: website_api
-    cost_level: free
-    credibility_tier: 4
-    notes: Algolia HN search API. One doc per matching story. Auto-fetched by app.fetchers.hackernews.
-
-  - source_id: oilprice_news
-    source_name: OilPrice.com
-    source_bucket: authoritative_news
-    access_mode: website_rss
-    cost_level: free
-    credibility_tier: 3
-    notes: OilPrice.com headline feed. Auto-fetched via RSS.
-
-  - source_id: rbn_energy
-    source_name: RBN Energy
-    source_bucket: authoritative_news
-    access_mode: website_rss
-    cost_level: free
-    credibility_tier: 2
-    notes: RBN Energy daily blog (analytical commentary on US oil/gas markets).
-
-  - source_id: zerohedge_energy
-    source_name: ZeroHedge
-    source_bucket: authoritative_news
-    access_mode: website_rss
-    cost_level: free
-    credibility_tier: 4
-    notes: ZeroHedge feed (broad, sentiment-prone). Filter for oil/energy keywords downstream.
-
-  - source_id: energy_voice
-    source_name: Energy Voice
-    source_bucket: authoritative_news
-    access_mode: website_rss
-    cost_level: free
-    credibility_tier: 3
-    notes: Energy Voice feed (UK-North Sea tilt, useful for upstream chatter).
-
-  - source_id: world_oil
-    source_name: World Oil
-    source_bucket: authoritative_news
-    access_mode: website_rss
-    cost_level: free
-    credibility_tier: 3
-    notes: World Oil magazine news feed.
-
-  - source_id: cnbc_energy
-    source_name: CNBC Energy
-    source_bucket: authoritative_news
-    access_mode: website_rss
-    cost_level: free
-    credibility_tier: 2
-    notes: CNBC oil/energy section RSS (id=19836768). Free, no auth.
-
-  - source_id: cnbc_top_news
-    source_name: CNBC Top News
-    source_bucket: authoritative_news
-    access_mode: website_rss
-    cost_level: free
-    credibility_tier: 2
-    notes: CNBC top-news RSS. Catches macro/geopolitics that touches oil.
-
-  - source_id: cnbc_economy
-    source_name: CNBC Economy
-    source_bucket: authoritative_news
-    access_mode: website_rss
-    cost_level: free
-    credibility_tier: 2
-    notes: CNBC economy RSS. Macro context for oil demand.
-
-  - source_id: google_news
-    source_name: Google News
-    source_bucket: authoritative_news
-    access_mode: website_rss
-    cost_level: free
-    credibility_tier: 3
-    notes: Google News RSS aggregator. Captures Reuters/Bloomberg/AP syndicated coverage and reposts of Trump Truth Social posts (since direct Truth Social API is Cloudflare-gated). Multiple targeted queries covering Trump-on-oil, White House energy, Iran/sanctions, and Energy Secretary/SPR.
-
-  - source_id: whitehouse_news
-    source_name: WhiteHouse.gov News
-    source_bucket: official_data
-    access_mode: website_rss
-    cost_level: free
-    credibility_tier: 1
-    notes: White House news / press releases. Captures presidential statements that talk markets up or down.
-
-  - source_id: whitehouse_actions
-    source_name: WhiteHouse.gov Presidential Actions
-    source_bucket: official_data
-    access_mode: website_rss
-    cost_level: free
-    credibility_tier: 1
-    notes: Executive orders, proclamations, nominations.
-
-  - source_id: fed_speeches
-    source_name: Federal Reserve Speeches
-    source_bucket: official_data
-    access_mode: website_rss
-    cost_level: free
-    credibility_tier: 1
-    notes: FOMC member speeches; references to oil/inflation/energy frequently move the front-month curve.
-
-  - source_id: truth_social
-    source_name: Truth Social
-    source_bucket: social_open
-    access_mode: manual_upload
-    cost_level: free
-    credibility_tier: 5
-    notes: Truth Social posts with potential market impact. Direct API (truthsocial.com/api/v1) is Cloudflare-gated (403); coverage of Trump's posts arrives indirectly via google_news queries. For real-time access, manual paste or screenshot OCR.
-
-  # --- Private chatter (manual upload from WeChat / Telegram / WhatsApp) ---
-  - source_id: telegram_forwarded
-    source_name: Forwarded Telegram
-    source_bucket: social_private_manual
-    access_mode: manual_upload
-    cost_level: free
-    credibility_tier: 5
-    notes: Rumor-prone forwarded market chatter from Telegram.
-
-  - source_id: wechat_forwarded
-    source_name: Forwarded WeChat
-    source_bucket: social_private_manual
-    access_mode: manual_upload
-    cost_level: free
-    credibility_tier: 5
-    notes: Forwarded WeChat group chatter (Chinese-language oil traders).
-
-  - source_id: whatsapp_forwarded
-    source_name: Forwarded WhatsApp
-    source_bucket: social_private_manual
-    access_mode: manual_upload
-    cost_level: free
-    credibility_tier: 5
-    notes: Forwarded WhatsApp group chatter.
+- source_id: eia_weekly_petroleum
+  source_name: EIA
+  source_bucket: official_data
+  access_mode: website_csv
+  cost_level: free
+  credibility_tier: 1
+  notes: U.S. Weekly Petroleum Status Report. Authoritative inventory data.
+- source_id: eia_steo
+  source_name: EIA
+  source_bucket: official_reports
+  access_mode: website_pdf
+  cost_level: free
+  credibility_tier: 1
+  notes: Short-Term Energy Outlook (monthly forecast).
+- source_id: iea_omr
+  source_name: IEA
+  source_bucket: official_reports
+  access_mode: website_pdf
+  cost_level: free
+  credibility_tier: 1
+  notes: Oil Market Report (monthly). Some content gated; use the public summary.
+- source_id: opec_momr
+  source_name: OPEC
+  source_bucket: official_reports
+  access_mode: website_pdf
+  cost_level: free
+  credibility_tier: 1
+  notes: OPEC Monthly Oil Market Report and policy statements.
+- source_id: opec_press_releases
+  source_name: OPEC
+  source_bucket: official_data
+  access_mode: website_html
+  cost_level: free
+  credibility_tier: 1
+  notes: OPEC+ press releases announcing quota and compliance decisions.
+- source_id: ofac_announcements
+  source_name: OFAC
+  source_bucket: official_data
+  access_mode: website_html
+  cost_level: free
+  credibility_tier: 1
+  notes: U.S. Treasury sanctions designations and price-cap guidance.
+- source_id: shana_iran
+  source_name: SHANA
+  source_bucket: official_data
+  access_mode: website_html
+  cost_level: free
+  credibility_tier: 2
+  notes: Iranian Oil Ministry news agency.
+- source_id: spa_saudi
+  source_name: SPA
+  source_bucket: official_data
+  access_mode: website_html
+  cost_level: free
+  credibility_tier: 2
+  notes: Saudi Press Agency (official statements from the Kingdom).
+- source_id: imf_weo
+  source_name: IMF
+  source_bucket: official_reports
+  access_mode: website_pdf
+  cost_level: free
+  credibility_tier: 1
+  notes: World Economic Outlook (macro context for oil demand).
+- source_id: world_bank_commodity
+  source_name: World Bank
+  source_bucket: official_reports
+  access_mode: website_pdf
+  cost_level: free
+  credibility_tier: 1
+  notes: Commodity Markets Outlook.
+- source_id: producer_press_release
+  source_name: Producer Press Releases
+  source_bucket: institutional_public
+  access_mode: website_html
+  cost_level: free
+  credibility_tier: 2
+  notes: Aramco, Exxon, Shell, BP, Chevron, Reliance press releases and earnings calls.
+- source_id: refiner_earnings
+  source_name: Refiner Earnings Calls
+  source_bucket: institutional_public
+  access_mode: manual_upload
+  cost_level: free
+  credibility_tier: 2
+  notes: Public earnings call transcripts revealing demand views ahead of agencies.
+- source_id: reuters_energy
+  source_name: Reuters
+  source_bucket: authoritative_news
+  access_mode: website_html
+  cost_level: free
+  credibility_tier: 2
+  notes: Reuters energy desk free articles.
+- source_id: bloomberg_energy_free
+  source_name: Bloomberg
+  source_bucket: authoritative_news
+  access_mode: website_html
+  cost_level: free
+  credibility_tier: 2
+  notes: Bloomberg energy free tier headlines only; full terminal is paid.
+- source_id: sellside_manual_upload
+  source_name: Sellside Reports Manual Upload
+  source_bucket: sellside_private
+  access_mode: manual_upload
+  cost_level: proprietary
+  credibility_tier: 2
+  notes: Generic bucket for GS / MS / BoA / Macq research. Only ingest documents you are authorized to use.
+- source_id: x_open
+  source_name: X / Twitter
+  source_bucket: social_open
+  access_mode: manual_upload
+  cost_level: free
+  credibility_tier: 4
+  notes: Public X posts. Credibility varies wildly by account.
+- source_id: reddit_oil
+  source_name: Reddit
+  source_bucket: social_open
+  access_mode: website_api
+  cost_level: free
+  credibility_tier: 5
+  notes: r/oil, r/oilandgasworkers, r/energy, r/commodities, r/EnergyTrading, plus keyword searches in r/wallstreetbets
+    / r/StockMarket. Auto-fetched by app.fetchers.reddit.
+- source_id: stocktwits_energy
+  source_name: StockTwits
+  source_bucket: social_open
+  access_mode: website_api
+  cost_level: free
+  credibility_tier: 5
+  notes: Public cashtag streams ($CL_F, $BZ_F, $USO, $XOM, $XLE). Bundled per-day per-symbol. Auto-fetched by app.fetchers.stocktwits.
+- source_id: bluesky_energy
+  source_name: Bluesky
+  source_bucket: social_open
+  access_mode: website_api
+  cost_level: free
+  credibility_tier: 5
+  notes: Public AppView searchPosts API. Bundled per-day per-query. Auto-fetched by app.fetchers.bluesky.
+- source_id: hackernews_energy
+  source_name: Hacker News
+  source_bucket: social_open
+  access_mode: website_api
+  cost_level: free
+  credibility_tier: 4
+  notes: Algolia HN search API. One doc per matching story. Auto-fetched by app.fetchers.hackernews.
+- source_id: oilprice_news
+  source_name: OilPrice.com
+  source_bucket: authoritative_news
+  access_mode: website_rss
+  cost_level: free
+  credibility_tier: 3
+  notes: OilPrice.com headline feed. Auto-fetched via RSS.
+- source_id: rbn_energy
+  source_name: RBN Energy
+  source_bucket: authoritative_news
+  access_mode: website_rss
+  cost_level: free
+  credibility_tier: 2
+  notes: RBN Energy daily blog (analytical commentary on US oil/gas markets).
+- source_id: zerohedge_energy
+  source_name: ZeroHedge
+  source_bucket: authoritative_news
+  access_mode: website_rss
+  cost_level: free
+  credibility_tier: 4
+  notes: ZeroHedge feed (broad, sentiment-prone). Filter for oil/energy keywords downstream.
+- source_id: energy_voice
+  source_name: Energy Voice
+  source_bucket: authoritative_news
+  access_mode: website_rss
+  cost_level: free
+  credibility_tier: 3
+  notes: Energy Voice feed (UK-North Sea tilt, useful for upstream chatter).
+- source_id: world_oil
+  source_name: World Oil
+  source_bucket: authoritative_news
+  access_mode: website_rss
+  cost_level: free
+  credibility_tier: 3
+  notes: World Oil magazine news feed.
+- source_id: cnbc_energy
+  source_name: CNBC Energy
+  source_bucket: authoritative_news
+  access_mode: website_rss
+  cost_level: free
+  credibility_tier: 2
+  notes: CNBC oil/energy section RSS (id=19836768). Free, no auth.
+- source_id: cnbc_top_news
+  source_name: CNBC Top News
+  source_bucket: authoritative_news
+  access_mode: website_rss
+  cost_level: free
+  credibility_tier: 2
+  notes: CNBC top-news RSS. Catches macro/geopolitics that touches oil.
+- source_id: cnbc_economy
+  source_name: CNBC Economy
+  source_bucket: authoritative_news
+  access_mode: website_rss
+  cost_level: free
+  credibility_tier: 2
+  notes: CNBC economy RSS. Macro context for oil demand.
+- source_id: google_news
+  source_name: Google News
+  source_bucket: authoritative_news
+  access_mode: website_rss
+  cost_level: free
+  credibility_tier: 3
+  notes: Google News RSS aggregator. Captures Reuters/Bloomberg/AP syndicated coverage and reposts of Trump Truth
+    Social posts (since direct Truth Social API is Cloudflare-gated). Multiple targeted queries covering Trump-on-oil,
+    White House energy, Iran/sanctions, and Energy Secretary/SPR.
+- source_id: whitehouse_news
+  source_name: WhiteHouse.gov News
+  source_bucket: official_data
+  access_mode: website_rss
+  cost_level: free
+  credibility_tier: 1
+  notes: White House news / press releases. Captures presidential statements that talk markets up or down.
+- source_id: whitehouse_actions
+  source_name: WhiteHouse.gov Presidential Actions
+  source_bucket: official_data
+  access_mode: website_rss
+  cost_level: free
+  credibility_tier: 1
+  notes: Executive orders, proclamations, nominations.
+- source_id: fed_speeches
+  source_name: Federal Reserve Speeches
+  source_bucket: official_data
+  access_mode: website_rss
+  cost_level: free
+  credibility_tier: 1
+  notes: FOMC member speeches; references to oil/inflation/energy frequently move the front-month curve.
+- source_id: truth_social
+  source_name: Truth Social
+  source_bucket: social_open
+  access_mode: manual_upload
+  cost_level: free
+  credibility_tier: 5
+  notes: Truth Social posts with potential market impact. Direct API (truthsocial.com/api/v1) is Cloudflare-gated
+    (403); coverage of Trump's posts arrives indirectly via google_news queries. For real-time access, manual paste
+    or screenshot OCR.
+- source_id: telegram_forwarded
+  source_name: Forwarded Telegram
+  source_bucket: social_private_manual
+  access_mode: manual_upload
+  cost_level: free
+  credibility_tier: 5
+  notes: Rumor-prone forwarded market chatter from Telegram.
+- source_id: wechat_forwarded
+  source_name: Forwarded WeChat
+  source_bucket: social_private_manual
+  access_mode: manual_upload
+  cost_level: free
+  credibility_tier: 5
+  notes: Forwarded WeChat group chatter (Chinese-language oil traders).
+- source_id: whatsapp_forwarded
+  source_name: Forwarded WhatsApp
+  source_bucket: social_private_manual
+  access_mode: manual_upload
+  cost_level: free
+  credibility_tier: 5
+  notes: Forwarded WhatsApp group chatter.
+- source_id: xinhua_business
+  source_name: Xinhua (Business)
+  source_bucket: authoritative_news
+  access_mode: website_rss
+  cost_level: free
+  credibility_tier: 3
+  notes: "Xinhua News Agency (Chinese state) business RSS \u2014 China demand views, OPEC+ China dynamics, sanctions\
+    \ evasion."
+- source_id: xinhua_world
+  source_name: Xinhua (World)
+  source_bucket: authoritative_news
+  access_mode: website_rss
+  cost_level: free
+  credibility_tier: 3
+  notes: "Xinhua world-news RSS \u2014 Chinese geopolitical lens."
+- source_id: tass_economy
+  source_name: TASS (Economy)
+  source_bucket: authoritative_news
+  access_mode: website_rss
+  cost_level: free
+  credibility_tier: 4
+  notes: "TASS (Russian state) economy RSS \u2014 Russia oil flows, sanctions, OPEC+ Russia coordination."
+- source_id: presstv_economy
+  source_name: Press TV (Economy)
+  source_bucket: authoritative_news
+  access_mode: website_rss
+  cost_level: free
+  credibility_tier: 4
+  notes: "Press TV (Iranian state) economy RSS \u2014 direct Iran narratives on Hormuz, sanctions, oil exports."
+- source_id: aljazeera_all
+  source_name: Al Jazeera
+  source_bucket: authoritative_news
+  access_mode: website_rss
+  cost_level: free
+  credibility_tier: 2
+  notes: "Al Jazeera English \u2014 Middle East perspective on conflicts, OPEC, Hormuz."
+- source_id: scmp_china
+  source_name: SCMP (China)
+  source_bucket: authoritative_news
+  access_mode: website_rss
+  cost_level: free
+  credibility_tier: 2
+  notes: "South China Morning Post \u2014 Chinese economy / energy demand / Belt and Road context."
+- source_id: nikkei_asia_business
+  source_name: Nikkei Asia (Business)
+  source_bucket: authoritative_news
+  access_mode: website_rss
+  cost_level: free
+  credibility_tier: 2
+  notes: "Nikkei Asia \u2014 pan-Asian business view, oil demand from Asia ex-China."
