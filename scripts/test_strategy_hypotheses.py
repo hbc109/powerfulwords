@@ -31,13 +31,16 @@ TH = _load_thresholds()
 
 
 def make_hypotheses() -> list[Hypothesis]:
+    """Initial hypothesis menu covering the major archetypes:
+       sentiment fade, trend confirmation (news drift), volume confirm,
+       source divergence (chatter-leads-officials), breadth divergence,
+       range-regime mean reversion.
+    """
     return [
+        # ---- Sentiment fade (mean reversion at extremes) ----
         Hypothesis(
             name="H1_fade_bullish_at_stretched",
-            description=(
-                "Bullish narrative score in a stretched_up price regime. "
-                "Hypothesis: chatter clusters at tops; fade for 5d."
-            ),
+            description="Bullish narrative + stretched_up regime → fade. Chatter clusters at tops.",
             direction="short",
             rule=lambda r: (
                 float(r["narrative_score"] or 0) >= TH["long"]
@@ -45,11 +48,19 @@ def make_hypotheses() -> list[Hypothesis]:
             ),
         ),
         Hypothesis(
-            name="H2_trend_confirm_bullish",
-            description=(
-                "Bullish narrative + trend_up regime + cross-product "
-                "agreement >= 0.67. News drift in confirmed trend."
+            name="H1b_fade_bearish_at_stretched_down",
+            description="Bearish narrative + stretched_down regime → fade long. Mirror of H1; chatter clusters at bottoms.",
+            direction="long",
+            rule=lambda r: (
+                float(r["narrative_score"] or 0) <= TH["short"]
+                and r["primary_regime"] == "stretched_down"
             ),
+        ),
+
+        # ---- Trend confirmation (news drift) ----
+        Hypothesis(
+            name="H2_trend_confirm_bullish",
+            description="Bullish narrative + trend_up + xprod ≥ 0.67. News drift in confirmed uptrend.",
             direction="long",
             rule=lambda r: (
                 float(r["narrative_score"] or 0) >= TH["long"]
@@ -59,15 +70,101 @@ def make_hypotheses() -> list[Hypothesis]:
         ),
         Hypothesis(
             name="H3_bear_conviction",
-            description=(
-                "Bearish narrative + trend_down regime + cross-product "
-                "agreement >= 0.67. Consensus bear in confirmed downtrend."
-            ),
+            description="Bearish narrative + trend_down + xprod ≥ 0.67. Consensus bear in confirmed downtrend.",
             direction="short",
             rule=lambda r: (
                 float(r["narrative_score"] or 0) <= TH["short"]
                 and r["primary_regime"] == "trend_down"
                 and (r["cross_product_agreement"] or 0) >= 0.67
+            ),
+        ),
+
+        # ---- Volume confirmation ----
+        Hypothesis(
+            name="H4_volume_confirm_bullish",
+            description="Bullish narrative + trend_up + volume ≥ 1.5×20d. Real participation behind the move.",
+            direction="long",
+            rule=lambda r: (
+                float(r["narrative_score"] or 0) >= TH["long"]
+                and r["primary_regime"] == "trend_up"
+                and (r["volume_ratio"] or 0) >= 1.5
+            ),
+        ),
+        Hypothesis(
+            name="H5_low_volume_rally_fade",
+            description="Bullish narrative + trend_up + volume < 0.7×20d. Weak rally; fade.",
+            direction="short",
+            rule=lambda r: (
+                float(r["narrative_score"] or 0) >= TH["long"]
+                and r["primary_regime"] == "trend_up"
+                and 0 < (r["volume_ratio"] or 0) < 0.7
+            ),
+        ),
+
+        # ---- Source divergence (chatter leads officials) ----
+        Hypothesis(
+            name="H6_chatter_leads_bullish",
+            description=(
+                "Bullish narrative + source_divergence > 0.4 + chatter_score > 0.5. "
+                "Chatter loud, officials silent — chatter often leads."
+            ),
+            direction="long",
+            rule=lambda r: (
+                float(r["narrative_score"] or 0) >= TH["long"]
+                and (r["source_divergence"] or 0) > 0.4
+                and (r["chatter_score"] or 0) > 0.5
+            ),
+        ),
+        Hypothesis(
+            name="H7_chatter_leads_bearish",
+            description=(
+                "Bearish narrative + source_divergence > 0.4 + chatter_score > 0.5. "
+                "Mirror of H6 on the bearish side."
+            ),
+            direction="short",
+            rule=lambda r: (
+                float(r["narrative_score"] or 0) <= TH["short"]
+                and (r["source_divergence"] or 0) > 0.4
+                and (r["chatter_score"] or 0) > 0.5
+            ),
+        ),
+
+        # ---- Breadth divergence ----
+        Hypothesis(
+            name="H8_lone_outlier_fade",
+            description=(
+                "Bullish narrative + symbol is lone outlier in regime "
+                "(xprod ≤ 0.33). Likely false breakout; fade."
+            ),
+            direction="short",
+            rule=lambda r: (
+                float(r["narrative_score"] or 0) >= TH["long"]
+                and (r["cross_product_agreement"] is not None
+                     and r["cross_product_agreement"] <= 0.33)
+            ),
+        ),
+        Hypothesis(
+            name="H9_full_breadth_confirm",
+            description="Bullish narrative + full cross-product agreement (xprod = 1.0). Consensus uptrend across the complex.",
+            direction="long",
+            rule=lambda r: (
+                float(r["narrative_score"] or 0) >= TH["long"]
+                and (r["cross_product_agreement"] or 0) >= 1.0
+            ),
+        ),
+
+        # ---- Range-regime mean reversion ----
+        Hypothesis(
+            name="H10_range_overbought_fade",
+            description=(
+                "Bullish narrative + range regime + RSI > 65. "
+                "In chop with no trend, extreme RSI mean-reverts."
+            ),
+            direction="short",
+            rule=lambda r: (
+                float(r["narrative_score"] or 0) >= TH["long"]
+                and r["primary_regime"] == "range"
+                and (r["rsi14"] or 0) > 65
             ),
         ),
     ]
