@@ -8,11 +8,11 @@
         "attack",
         "delay",
         "shutdown",
-        "中断",
-        "停产",
-        "袭击",
-        "延误",
-        "关闭"
+        "\u4e2d\u65ad",
+        "\u505c\u4ea7",
+        "\u88ad\u51fb",
+        "\u5ef6\u8bef",
+        "\u5173\u95ed"
       ],
       "direction": "bullish"
     },
@@ -21,8 +21,8 @@
         "strong demand",
         "rebound in demand",
         "jet fuel demand",
-        "需求回升",
-        "需求反弹"
+        "\u9700\u6c42\u56de\u5347",
+        "\u9700\u6c42\u53cd\u5f39"
       ],
       "direction": "bullish"
     },
@@ -30,8 +30,8 @@
       "keywords": [
         "inventory draw",
         "stock draw",
-        "库存下降",
-        "去库存"
+        "\u5e93\u5b58\u4e0b\u964d",
+        "\u53bb\u5e93\u5b58"
       ],
       "direction": "bullish"
     },
@@ -39,8 +39,8 @@
       "keywords": [
         "inventory build",
         "stock build",
-        "库存增加",
-        "累库"
+        "\u5e93\u5b58\u589e\u52a0",
+        "\u7d2f\u5e93"
       ],
       "direction": "bearish"
     },
@@ -51,9 +51,9 @@
         "quota",
         "compliance",
         "production cut",
-        "减产",
-        "增产",
-        "配额"
+        "\u51cf\u4ea7",
+        "\u589e\u4ea7",
+        "\u914d\u989d"
       ],
       "direction": "mixed"
     },
@@ -62,9 +62,9 @@
         "sanction",
         "ofac",
         "price cap",
-        "制裁",
-        "禁运",
-        "限价"
+        "\u5236\u88c1",
+        "\u7981\u8fd0",
+        "\u9650\u4ef7"
       ],
       "direction": "bullish"
     },
@@ -73,8 +73,8 @@
         "hurricane",
         "storm",
         "cyclone",
-        "飓风",
-        "风暴"
+        "\u98d3\u98ce",
+        "\u98ce\u66b4"
       ],
       "direction": "bullish"
     },
@@ -84,10 +84,10 @@
         "tanker",
         "strait",
         "red sea",
-        "航运中断",
-        "油轮",
-        "海峡",
-        "红海"
+        "\u822a\u8fd0\u4e2d\u65ad",
+        "\u6cb9\u8f6e",
+        "\u6d77\u5ce1",
+        "\u7ea2\u6d77"
       ],
       "direction": "bullish"
     },
@@ -96,9 +96,9 @@
         "refining margin",
         "crack spread",
         "refinery run",
-        "炼厂利润",
-        "裂解价差",
-        "炼厂开工"
+        "\u70bc\u5382\u5229\u6da6",
+        "\u88c2\u89e3\u4ef7\u5dee",
+        "\u70bc\u5382\u5f00\u5de5"
       ],
       "direction": "mixed"
     },
@@ -106,8 +106,8 @@
       "keywords": [
         "recession",
         "growth slowdown",
-        "经济衰退",
-        "增长放缓"
+        "\u7ecf\u6d4e\u8870\u9000",
+        "\u589e\u957f\u653e\u7f13"
       ],
       "direction": "bearish"
     },
@@ -116,8 +116,8 @@
         "higher rates",
         "strong dollar",
         "fed hike",
-        "美元走强",
-        "加息"
+        "\u7f8e\u5143\u8d70\u5f3a",
+        "\u52a0\u606f"
       ],
       "direction": "bearish"
     },
@@ -126,9 +126,9 @@
         "war",
         "conflict",
         "geopolitical tension",
-        "冲突",
-        "战争",
-        "地缘风险"
+        "\u51b2\u7a81",
+        "\u6218\u4e89",
+        "\u5730\u7f18\u98ce\u9669"
       ],
       "direction": "bullish"
     },
@@ -136,11 +136,98 @@
       "keywords": [
         "restart",
         "resume output",
-        "复产",
-        "恢复生产",
-        "恢复出口"
+        "\u590d\u4ea7",
+        "\u6062\u590d\u751f\u4ea7",
+        "\u6062\u590d\u51fa\u53e3"
       ],
       "direction": "bearish"
+    },
+    "refinery_turnaround": {
+      "keywords": [
+        "refinery turnaround",
+        "refinery maintenance",
+        "refinery shutdown",
+        "refinery outage",
+        "refinery restart",
+        "FCC",
+        "throughput cut",
+        "refinery utilization",
+        "checkin season",
+        "refinery downtime"
+      ],
+      "direction": "mixed"
+    },
+    "crack_spread_signal": {
+      "keywords": [
+        "crack spread",
+        "refining margin",
+        "321 crack",
+        "gasoline crack",
+        "diesel crack",
+        "product margins",
+        "GRM",
+        "complex margin",
+        "margin expansion",
+        "margin compression"
+      ],
+      "direction": "mixed"
+    },
+    "speculator_buildup": {
+      "keywords": [
+        "managed money",
+        "spec long",
+        "spec short",
+        "speculator",
+        "net long",
+        "net short",
+        "CFTC",
+        "commitments of traders",
+        "non-commercial",
+        "fund positioning",
+        "positioning extreme"
+      ],
+      "direction": "mixed"
+    },
+    "cta_flow": {
+      "keywords": [
+        "CTA",
+        "trend follower",
+        "systematic flow",
+        "momentum trader",
+        "commodity trading advisor",
+        "vol-target",
+        "trend signal",
+        "model selling",
+        "model buying"
+      ],
+      "direction": "mixed"
+    },
+    "floating_storage": {
+      "keywords": [
+        "floating storage",
+        "VLCC storage",
+        "tanker storage",
+        "oil at sea",
+        "contango storage",
+        "vessels storing",
+        "offshore inventory"
+      ],
+      "direction": "bearish"
+    },
+    "tanker_rates": {
+      "keywords": [
+        "tanker rates",
+        "VLCC rates",
+        "Suezmax rates",
+        "Aframax rates",
+        "Baltic Dirty",
+        "Worldscale",
+        "freight rates",
+        "shipping rates",
+        "tanker freight",
+        "tanker market"
+      ],
+      "direction": "mixed"
     }
   },
   "bullish_words": [
@@ -149,20 +236,20 @@
     "supportive",
     "bullish",
     "stronger",
-    "上涨",
-    "偏多",
-    "紧张",
-    "支撑"
+    "\u4e0a\u6da8",
+    "\u504f\u591a",
+    "\u7d27\u5f20",
+    "\u652f\u6491"
   ],
   "bearish_words": [
     "oversupply",
     "weaker",
     "bearish",
     "slowing",
-    "下跌",
-    "偏空",
-    "过剩",
-    "走弱"
+    "\u4e0b\u8dcc",
+    "\u504f\u7a7a",
+    "\u8fc7\u5269",
+    "\u8d70\u5f31"
   ],
   "rumor_words": [
     "rumor",
@@ -170,10 +257,10 @@
     "reportedly",
     "market talk",
     "hearing",
-    "传言",
-    "未证实",
-    "据说",
-    "听说"
+    "\u4f20\u8a00",
+    "\u672a\u8bc1\u5b9e",
+    "\u636e\u8bf4",
+    "\u542c\u8bf4"
   ],
   "official_confirm_words": [
     "official",
@@ -181,26 +268,26 @@
     "eia",
     "opec",
     "ofac",
-    "官方",
-    "确认",
-    "证实"
+    "\u5b98\u65b9",
+    "\u786e\u8ba4",
+    "\u8bc1\u5b9e"
   ],
   "swing_words": [
     "days",
     "weeks",
     "coming weeks",
     "short term",
-    "未来几周",
-    "短期"
+    "\u672a\u6765\u51e0\u5468",
+    "\u77ed\u671f"
   ],
   "medium_term_words": [
     "months",
     "quarter",
     "year",
     "medium term",
-    "未来数月",
-    "季度",
-    "年内"
+    "\u672a\u6765\u6570\u6708",
+    "\u5b63\u5ea6",
+    "\u5e74\u5185"
   ],
   "regions": {
     "middle_east": [
@@ -210,30 +297,30 @@
       "iran",
       "iraq",
       "uae",
-      "中东",
-      "海湾",
-      "沙特",
-      "伊朗",
-      "伊拉克"
+      "\u4e2d\u4e1c",
+      "\u6d77\u6e7e",
+      "\u6c99\u7279",
+      "\u4f0a\u6717",
+      "\u4f0a\u62c9\u514b"
     ],
     "black_sea": [
       "black sea",
       "russia",
       "ukraine",
-      "黑海",
-      "俄罗斯",
-      "乌克兰"
+      "\u9ed1\u6d77",
+      "\u4fc4\u7f57\u65af",
+      "\u4e4c\u514b\u5170"
     ],
     "us_gulf": [
       "gulf coast",
       "mexico gulf",
-      "墨西哥湾",
-      "美国湾岸"
+      "\u58a8\u897f\u54e5\u6e7e",
+      "\u7f8e\u56fd\u6e7e\u5cb8"
     ],
     "global": [
       "global",
       "worldwide",
-      "全球"
+      "\u5168\u7403"
     ]
   },
   "entities": [
@@ -248,10 +335,10 @@
     "UAE",
     "WTI",
     "Brent",
-    "沙特",
-    "俄罗斯",
-    "伊朗",
-    "伊拉克",
-    "阿联酋"
+    "\u6c99\u7279",
+    "\u4fc4\u7f57\u65af",
+    "\u4f0a\u6717",
+    "\u4f0a\u62c9\u514b",
+    "\u963f\u8054\u914b"
   ]
 }

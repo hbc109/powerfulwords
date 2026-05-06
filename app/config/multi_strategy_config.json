@@ -26,7 +26,10 @@
           "inventories": 0.8,
           "macro": 0.6,
           "geopolitics": 1.2,
-          "other": 0.5
+          "other": 0.5,
+          "refining": 0.5,
+          "positioning": 0.7,
+          "freight": 0.4
         },
         "theme_vetoes": [
           {
@@ -82,7 +85,10 @@
           "inventories": 0.8,
           "macro": 0.6,
           "geopolitics": 1.4,
-          "other": 0.5
+          "other": 0.5,
+          "refining": 0.5,
+          "positioning": 0.7,
+          "freight": 0.5
         },
         "theme_vetoes": [
           {
@@ -141,7 +147,10 @@
           "inventories": 0.3,
           "macro": 0.2,
           "geopolitics": 1.5,
-          "other": 0.2
+          "other": 0.2,
+          "refining": 0.4,
+          "positioning": 0.5,
+          "freight": 0.6
         },
         "theme_vetoes": [
           {
@@ -186,7 +195,10 @@
           "inventories": 0.6,
           "macro": 0.5,
           "geopolitics": 0.4,
-          "other": 0.3
+          "other": 0.3,
+          "refining": 1.4,
+          "positioning": 0.4,
+          "freight": 0.3
         },
         "theme_vetoes": [
           {
@@ -231,7 +243,10 @@
           "inventories": 0.5,
           "macro": 0.5,
           "geopolitics": 0.4,
-          "other": 0.3
+          "other": 0.3,
+          "refining": 1.4,
+          "positioning": 0.4,
+          "freight": 0.4
         },
         "theme_vetoes": [
           {
@@ -273,7 +288,10 @@
           "inventories": 1.0,
           "macro": 0.7,
           "geopolitics": 0.7,
-          "other": 0.4
+          "other": 0.4,
+          "refining": 1.0,
+          "positioning": 0.5,
+          "freight": 0.4
         },
         "theme_vetoes": [
           {
@@ -322,7 +340,10 @@
           "inventories": 1.0,
           "macro": 1.0,
           "geopolitics": 0.7,
-          "other": 0.4
+          "other": 0.4,
+          "refining": 1.0,
+          "positioning": 0.5,
+          "freight": 0.5
         },
         "theme_vetoes": [
           {

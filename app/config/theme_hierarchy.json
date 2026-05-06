@@ -1,45 +1,66 @@
 {
-  "version": 1,
-  "description": "Main themes (parent) -> subthemes (which are the keys in oil_topic_rules.json). The extractor still emits a `topic` (= subtheme); the scorer rolls subthemes up into themes for the higher-level view.",
-  "themes": {
-    "supply": {
-      "label": "Supply",
-      "subthemes": [
-        "supply_disruption",
-        "opec_policy",
-        "production_restart",
-        "weather_risk",
-        "shipping_disruption"
-      ]
+    "version": 1,
+    "description": "Main themes (parent) -> subthemes (which are the keys in oil_topic_rules.json). The extractor still emits a `topic` (= subtheme); the scorer rolls subthemes up into themes for the higher-level view.",
+    "themes": {
+        "supply": {
+            "label": "Supply",
+            "subthemes": [
+                "supply_disruption",
+                "opec_policy",
+                "production_restart",
+                "weather_risk",
+                "shipping_disruption"
+            ]
+        },
+        "demand": {
+            "label": "Demand",
+            "subthemes": [
+                "demand_reacceleration",
+                "refining_margin_shift"
+            ]
+        },
+        "inventories": {
+            "label": "Inventories",
+            "subthemes": [
+                "inventory_draw",
+                "inventory_build"
+            ]
+        },
+        "macro": {
+            "label": "Macro",
+            "subthemes": [
+                "usd_rates_pressure",
+                "macro_growth_fear"
+            ]
+        },
+        "geopolitics": {
+            "label": "Geopolitics",
+            "subthemes": [
+                "geopolitical_risk",
+                "sanctions_risk"
+            ]
+        },
+        "refining": {
+            "label": "Refining",
+            "subthemes": [
+                "refinery_turnaround",
+                "crack_spread_signal"
+            ]
+        },
+        "positioning": {
+            "label": "Positioning",
+            "subthemes": [
+                "speculator_buildup",
+                "cta_flow"
+            ]
+        },
+        "freight": {
+            "label": "Freight & Storage",
+            "subthemes": [
+                "floating_storage",
+                "tanker_rates"
+            ]
+        }
     },
-    "demand": {
-      "label": "Demand",
-      "subthemes": [
-        "demand_reacceleration",
-        "refining_margin_shift"
-      ]
-    },
-    "inventories": {
-      "label": "Inventories",
-      "subthemes": [
-        "inventory_draw",
-        "inventory_build"
-      ]
-    },
-    "macro": {
-      "label": "Macro",
-      "subthemes": [
-        "usd_rates_pressure",
-        "macro_growth_fear"
-      ]
-    },
-    "geopolitics": {
-      "label": "Geopolitics",
-      "subthemes": [
-        "geopolitical_risk",
-        "sanctions_risk"
-      ]
-    }
-  },
-  "fallback_theme": "other"
+    "fallback_theme": "other"
 }
