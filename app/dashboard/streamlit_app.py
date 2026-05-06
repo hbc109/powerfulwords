@@ -296,7 +296,7 @@ c5.metric("Average Event Confidence", avg_conf)
 st.info(f"Main Sources: {main_sources}")
 
 tab_recs, tab_upload, tab1, tab_trends, tab2, tab3, tab_multi, tab_method = st.tabs(
-    ["Narrative Tilt", "Upload", "Overview", "Trends", "Research", "Backtest", "Multi-book", "Methodology"]
+    ["Narrative Tilt", "Upload", "Overview", "Trends", "Research", "Baseline Backtest", "Baseline Multi-book", "Methodology"]
 )
 
 def _book_history_score(book_cfg, theme_scores_df, score_date_str):
@@ -1222,7 +1222,15 @@ actually predict price moves? Two studies live here:
                 )
 
 with tab3:
-    st.subheader("Backtest Snapshot")
+    st.subheader("Baseline Backtest Snapshot")
+    st.warning(
+        "**This is a baseline, not a recommended strategy.** It runs the naive "
+        "approach — turn narrative tilt directly into LONG/SHORT via the per-book "
+        "thresholds, simulate P&L. The conditional event-study work in the "
+        "Research tab shows narrative tilt is **regime-dependent**, so this "
+        "P&L curve is a **comparator** for any hypothesis-driven strategy we "
+        "build later, not a live trading signal."
+    )
     backtest_payload = load_backtest_payload()
 
     if not backtest_payload:
@@ -1253,7 +1261,13 @@ with tab3:
             st.write("No trades recorded in backtest.")
 
 with tab_multi:
-    st.subheader("Multi-book backtest")
+    st.subheader("Baseline Multi-book Backtest")
+    st.warning(
+        "**Baseline, not a recommended strategy.** Multi-book version of the "
+        "naive narrative-tilt-as-trade-signal approach. Useful as a comparator "
+        "once we plug hypothesis-driven entries into the same engine. See "
+        "Research → Hypotheses for the strategy work."
+    )
     multi = load_multi_backtest_payload()
     if not multi:
         st.write(
