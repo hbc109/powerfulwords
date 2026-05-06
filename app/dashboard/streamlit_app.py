@@ -134,6 +134,16 @@ def load_event_study_history():
         return pd.DataFrame()
 
 
+def load_hypotheses_payload():
+    json_path = BASE_DIR / "data" / "processed" / "research" / "strategy_hypotheses.json"
+    if not json_path.exists():
+        return None
+    try:
+        return json.loads(json_path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
 def load_backtest_payload():
     backtest_dir = BASE_DIR / "data" / "processed" / "backtests"
     if not backtest_dir.exists():
@@ -967,7 +977,13 @@ actually predict price moves? Two studies live here:
    gets quantified: bullish chatter in a clean uptrend ≠ bullish
    chatter at a stretched top.
 
-3. **History panel** (when ≥2 weekly snapshots exist): how each
+3. **Hypotheses** — falsifiable trading rules combining narrative
+   tilt + regime + cross-product breadth. Each rule fires on
+   specific (date, symbol) combinations; we measure hit rate at 5d
+   on the **per-date** dedup count (one trade per day, not per topic).
+   Low-N findings (⚠ N<30) are flagged as suggestive only.
+
+4. **History panel** (when ≥2 weekly snapshots exist): how each
    bucket's hit rate has evolved across `event_study_history.csv`.
    A pattern stable across 6+ snapshots is more credible than one
    that just appeared this week.
@@ -1111,6 +1127,53 @@ actually predict price moves? Two studies live here:
                 "Conditional study not available in this payload. "
                 "Re-run `python scripts/run_event_study.py --symbol "
                 f"{chosen_symbol}` to regenerate."
+            )
+
+        # ---- Hypotheses ----
+        hypotheses_payload = load_hypotheses_payload()
+        if hypotheses_payload:
+            st.subheader("Hypotheses")
+            st.caption(
+                "Falsifiable rules combining narrative tilt, price regime, and "
+                "cross-product breadth. Hit rates use **per-date** dedup — one "
+                "trade per day, not per topic. ⚠ N<30 = treat as suggestive."
+            )
+            # Group by hypothesis name; rows from each symbol stacked beneath
+            from collections import defaultdict
+            grouped: dict = defaultdict(list)
+            for r in hypotheses_payload:
+                grouped[r["name"]].append(r)
+            for h_name, rows in grouped.items():
+                first = rows[0]
+                with st.container():
+                    direction = first["direction"].upper()
+                    color = {"LONG": "#2ca02c", "SHORT": "#d62728"}.get(direction, "#7f7f7f")
+                    st.markdown(
+                        f"<div style='border-left: 6px solid {color}; "
+                        f"padding-left: 8px; margin-top: 8px;'>"
+                        f"<b>{h_name}</b> — direction: <span style='color:{color}'>"
+                        f"<b>{direction}</b></span><br/>"
+                        f"<small>{first.get('description','')}</small></div>",
+                        unsafe_allow_html=True,
+                    )
+                    sym_rows = []
+                    for r in rows:
+                        h5 = (r.get("by_horizon") or {}).get("5", {}) or \
+                             (r.get("by_horizon") or {}).get(5, {}) or {}
+                        sym_rows.append({
+                            "symbol": r.get("symbol"),
+                            "unique_dates": r.get("unique_dates"),
+                            "5d_count": h5.get("count"),
+                            "5d_hit_rate": h5.get("hit_rate"),
+                            "5d_avg_ret": h5.get("avg_fwd_ret"),
+                            "low_N_flag": "⚠ N<30" if (h5.get("count") or 0) < 30 else "",
+                        })
+                    sym_df = pd.DataFrame(sym_rows)
+                    st.dataframe(sym_df, width="stretch", hide_index=True)
+        else:
+            st.info(
+                "No hypothesis-test payload yet. "
+                "Run `python scripts/test_strategy_hypotheses.py` to generate one."
             )
 
         # ---- History panel ----
