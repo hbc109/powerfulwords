@@ -11,6 +11,11 @@ def get_connection() -> sqlite3.Connection:
 def init_db() -> None:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = get_connection()
+    # WAL mode lets dashboard reads run concurrently with cron writes —
+    # otherwise heavy ingest grabs an exclusive lock and blocks queries.
+    # Idempotent; safe to run every init.
+    conn.execute("PRAGMA journal_mode=WAL;")
+    conn.execute("PRAGMA synchronous=NORMAL;")  # fewer fsyncs, still durable on WAL
     with open(INIT_SQL_PATH, "r", encoding="utf-8") as f:
         conn.executescript(f.read())
     # Lightweight migration for additive score columns. SQLite ALTER TABLE
