@@ -603,23 +603,25 @@ with tab_upload:
                 st.success(f"Saved {target_path.relative_to(BASE_DIR)}")
 
             if run_pipeline and saved:
-                with st.spinner("Running ingest → extract → score …"):
-                    cmds = [
-                        [sys.executable, "scripts/ingest_folder.py"],
-                        [sys.executable, "scripts/extract_narratives.py", "--mode", "auto"],
-                        [sys.executable, "scripts/score_narratives.py"],
-                    ]
-                    for cmd in cmds:
-                        result = subprocess.run(
-                            cmd, cwd=str(BASE_DIR), capture_output=True, text=True
-                        )
-                        if result.returncode != 0:
-                            st.error(f"`{cmd[1]}` failed:\n{result.stderr.strip() or result.stdout.strip()}")
-                            break
-                        last = (result.stdout.strip().splitlines() or [""])[-1]
-                        st.info(f"`{Path(cmd[1]).name}`: {last[:200]}")
-                    else:
-                        st.success("Pipeline complete. Switch tabs to see updated scores.")
+                # Fire-and-forget: chain the three pipeline steps via shell &&
+                # so they run sequentially in the background, but don't block
+                # the dashboard. Logs append to /tmp/upload_pipeline.log so we
+                # can surface a tail if the user wants to debug.
+                log_path = Path("/tmp/upload_pipeline.log")
+                cmd = (
+                    f"{sys.executable} scripts/ingest_folder.py >> {log_path} 2>&1 && "
+                    f"{sys.executable} scripts/extract_narratives.py --mode auto >> {log_path} 2>&1 && "
+                    f"{sys.executable} scripts/score_narratives.py >> {log_path} 2>&1"
+                )
+                subprocess.Popen(
+                    cmd, shell=True, cwd=str(BASE_DIR),
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    start_new_session=True,
+                )
+                st.success(
+                    "Pipeline kicked off in background — refresh in ~1-2 minutes "
+                    "to see updated scores. Logs at `/tmp/upload_pipeline.log`."
+                )
 
     st.divider()
     st.markdown(
