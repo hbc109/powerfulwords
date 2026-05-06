@@ -23,7 +23,7 @@ import numpy as np
 import pandas as pd
 
 from app.research.indicators import (
-    adx, atr, bollinger_pctb, rsi, sma, sma_slope,
+    adx, atr, bollinger_pctb, macd, rsi, sma, sma_slope, volume_ratio,
 )
 
 
@@ -59,6 +59,7 @@ def compute_regimes(
     high = df["high"].astype(float)
     low = df["low"].astype(float)
     close = df["close"].astype(float)
+    volume = df["volume"].astype(float) if "volume" in df.columns else pd.Series(np.nan, index=df.index)
 
     rsi14 = rsi(close, period=14)
     adx14 = adx(high, low, close, period=14)
@@ -68,6 +69,8 @@ def compute_regimes(
     slope50 = sma_slope(close, period=50, lookback=5)
     atr_baseline = atr14.rolling(atr_baseline_window, min_periods=20).mean()
     atr_ratio = atr14 / atr_baseline.replace(0, np.nan)
+    macd_line, macd_sig, macd_hist = macd(close)
+    vol_ratio = volume_ratio(volume) if volume.notna().any() else pd.Series(1.0, index=df.index)
 
     out = pd.DataFrame({
         "date": df["date"],
@@ -79,6 +82,9 @@ def compute_regimes(
         "bb_pctb": pctb.round(4),
         "sma50": sma50.round(4),
         "sma50_slope_5d_pct": slope50.round(4),
+        "macd_hist": macd_hist.round(4),
+        "macd_line": macd_line.round(4),
+        "volume_ratio": vol_ratio.round(3),
     })
 
     # Tag detection

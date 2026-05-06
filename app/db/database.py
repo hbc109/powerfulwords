@@ -30,6 +30,10 @@ def init_db() -> None:
         ],
         "daily_regimes": [
             ("regime_streak", "INTEGER"),
+            ("macd_line", "REAL"),
+            ("macd_hist", "REAL"),
+            ("volume_ratio", "REAL"),
+            ("cross_product_agreement", "REAL"),
         ],
     }
     for table, cols in additive_columns.items():

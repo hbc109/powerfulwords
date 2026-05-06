@@ -82,7 +82,8 @@ def load_prices() -> pd.DataFrame:
 def load_regimes() -> pd.DataFrame:
     return load_df("""
         SELECT regime_date, symbol, primary_regime, regime_tags, regime_streak,
-               close, rsi14, adx14, bb_pctb, atr_ratio
+               close, rsi14, adx14, bb_pctb, atr_ratio,
+               macd_hist, volume_ratio, cross_product_agreement
         FROM daily_regimes
         ORDER BY regime_date DESC, symbol
     """)
@@ -731,6 +732,18 @@ classification matches the source.
                         f"ADX {r['adx14']:.1f} · %B {r['bb_pctb']:.2f} · "
                         f"ATRr {r['atr_ratio']:.2f}"
                     )
+                    macd_h = r.get("macd_hist")
+                    vol_r = r.get("volume_ratio")
+                    xprod = r.get("cross_product_agreement")
+                    extras = []
+                    if pd.notna(macd_h):
+                        extras.append(f"MACD_h {macd_h:+.2f}")
+                    if pd.notna(vol_r):
+                        extras.append(f"vol×{vol_r:.2f}")
+                    if pd.notna(xprod):
+                        extras.append(f"xprod {xprod:.0%}")
+                    if extras:
+                        st.caption(" · ".join(extras))
                     if r["regime_tags"] and r["regime_tags"] != r["primary_regime"]:
                         st.caption(f"all tags: {r['regime_tags']}")
 

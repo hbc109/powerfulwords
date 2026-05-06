@@ -71,3 +71,24 @@ def sma_slope(close: pd.Series, period: int = 50, lookback: int = 5) -> pd.Serie
     """Slope of the SMA over `lookback` days, expressed as percent change."""
     s = sma(close, period)
     return (s - s.shift(lookback)) / s.shift(lookback) * 100
+
+
+def macd(close: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9):
+    """Standard MACD: 12/26 EMA difference and a 9-EMA signal line.
+
+    Returns a 3-tuple of Series: (macd_line, signal_line, histogram).
+    Histogram positive + rising = bullish momentum confirmation.
+    Histogram crossing zero = potential trend change.
+    """
+    ema_fast = close.ewm(span=fast, adjust=False).mean()
+    ema_slow = close.ewm(span=slow, adjust=False).mean()
+    macd_line = ema_fast - ema_slow
+    signal_line = macd_line.ewm(span=signal, adjust=False).mean()
+    hist = macd_line - signal_line
+    return macd_line, signal_line, hist
+
+
+def volume_ratio(volume: pd.Series, window: int = 20) -> pd.Series:
+    """Today's volume / rolling-mean(window). >1.5 = high-volume day."""
+    base = volume.rolling(window, min_periods=5).mean().replace(0, np.nan)
+    return (volume / base).fillna(1.0)

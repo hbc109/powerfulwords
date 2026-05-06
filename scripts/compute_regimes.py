@@ -23,6 +23,7 @@ from app.research.regime import compute_regimes
 REGIME_COLS = [
     "close", "rsi14", "adx14", "atr14", "atr_ratio",
     "bb_pctb", "sma50", "sma50_slope_5d_pct",
+    "macd_line", "macd_hist", "volume_ratio",
     "regime_tags", "primary_regime", "regime_streak",
 ]
 
@@ -82,8 +83,43 @@ def main() -> None:
               f"%B={latest['bb_pctb']:.2f}, ATRr={latest['atr_ratio']:.2f})")
         total += n
     conn.commit()
+
+    # Cross-product breadth: for each (date, symbol), the fraction of
+    # other symbols sharing the same primary_regime. 1.0 = full
+    # agreement; 0.25 = an outlier of the four-product complex.
+    bp_total = compute_breadth(conn)
+    conn.commit()
     conn.close()
-    print(f"\nTotal upserts: {total}")
+    print(f"\nTotal upserts: {total}; cross-product breadth populated for {bp_total} rows.")
+
+
+def compute_breadth(conn) -> int:
+    """Populate cross_product_agreement column for every (date, symbol)."""
+    OIL_SYMBOLS = ("WTI", "Brent", "RBOB_BBL", "ULSD_BBL")
+    cur = conn.execute(
+        "SELECT regime_date, symbol, primary_regime FROM daily_regimes "
+        "WHERE symbol IN (?, ?, ?, ?)",
+        OIL_SYMBOLS,
+    )
+    by_date: dict = {}
+    for d, s, r in cur.fetchall():
+        by_date.setdefault(d, {})[s] = r
+
+    n = 0
+    for d, syms in by_date.items():
+        if len(syms) < 2:
+            continue
+        for s, regime in syms.items():
+            agree = sum(1 for s2, r2 in syms.items() if s2 != s and r2 == regime)
+            denom = len(syms) - 1
+            ratio = agree / denom if denom else None
+            conn.execute(
+                "UPDATE daily_regimes SET cross_product_agreement = ? "
+                "WHERE regime_date = ? AND symbol = ?",
+                (ratio, d, s),
+            )
+            n += 1
+    return n
 
 
 if __name__ == "__main__":
