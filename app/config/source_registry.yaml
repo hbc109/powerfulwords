@@ -317,3 +317,11 @@ sources:
   cost_level: free
   credibility_tier: 2
   notes: "Nikkei Asia \u2014 pan-Asian business view, oil demand from Asia ex-China."
+- source_id: youtube_energy
+  source_name: YouTube (Energy)
+  source_bucket: social_open
+  access_mode: website_api
+  cost_level: free
+  credibility_tier: 4
+  notes: Auto-transcripts of recent videos from finance/oil channels (Bloomberg, CNBC, Yahoo Finance, Reuters, Real
+    Vision, OPEC). Filtered to oil-keyword titles. Auto-fetched via app.fetchers.youtube.

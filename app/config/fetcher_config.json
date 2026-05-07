@@ -933,6 +933,78 @@
         "follow_links": false,
         "min_chars": 80
       }
+    },
+    {
+      "name": "youtube_bloomberg_markets",
+      "type": "youtube",
+      "enabled": false,
+      "params": {
+        "channel_id": "UCIALMKvObZNtJ6AmdCLP7Lg",
+        "source_id": "youtube_energy",
+        "source_bucket": "social_open",
+        "limit": 15
+      },
+      "_note": "Disabled 2026-05-07: YouTube RSS endpoint bot-detects this server IP (intermittent 200 -> persistent 404 after a burst of requests). To re-enable: switch to YouTube Data API v3 with an API key, or yt-dlp."
+    },
+    {
+      "name": "youtube_cnbc",
+      "type": "youtube",
+      "enabled": false,
+      "params": {
+        "channel_id": "UCvJJ_dzjViJCoLf5uKUTwoA",
+        "source_id": "youtube_energy",
+        "source_bucket": "social_open",
+        "limit": 15
+      },
+      "_note": "Disabled 2026-05-07: YouTube RSS endpoint bot-detects this server IP (intermittent 200 -> persistent 404 after a burst of requests). To re-enable: switch to YouTube Data API v3 with an API key, or yt-dlp."
+    },
+    {
+      "name": "youtube_cnbc_television",
+      "type": "youtube",
+      "enabled": false,
+      "params": {
+        "channel_id": "UCrp_UI8XtuYfpiqluWLD7Lw",
+        "source_id": "youtube_energy",
+        "source_bucket": "social_open",
+        "limit": 15
+      },
+      "_note": "Disabled 2026-05-07: YouTube RSS endpoint bot-detects this server IP (intermittent 200 -> persistent 404 after a burst of requests). To re-enable: switch to YouTube Data API v3 with an API key, or yt-dlp."
+    },
+    {
+      "name": "youtube_yahoo_finance",
+      "type": "youtube",
+      "enabled": false,
+      "params": {
+        "channel_id": "UCEAZeUIeJs0IjQiqTCdVSIg",
+        "source_id": "youtube_energy",
+        "source_bucket": "social_open",
+        "limit": 15
+      },
+      "_note": "Disabled 2026-05-07: YouTube RSS endpoint bot-detects this server IP (intermittent 200 -> persistent 404 after a burst of requests). To re-enable: switch to YouTube Data API v3 with an API key, or yt-dlp."
+    },
+    {
+      "name": "youtube_real_vision",
+      "type": "youtube",
+      "enabled": false,
+      "params": {
+        "channel_id": "UCwSVtQvURxiyn1CQeyoExZg",
+        "source_id": "youtube_energy",
+        "source_bucket": "social_open",
+        "limit": 15
+      },
+      "_note": "Disabled 2026-05-07: YouTube RSS endpoint bot-detects this server IP (intermittent 200 -> persistent 404 after a burst of requests). To re-enable: switch to YouTube Data API v3 with an API key, or yt-dlp."
+    },
+    {
+      "name": "youtube_opec",
+      "type": "youtube",
+      "enabled": false,
+      "params": {
+        "channel_id": "UCRsn6DJQZtj-bdZVuafOnLg",
+        "source_id": "youtube_energy",
+        "source_bucket": "social_open",
+        "limit": 15
+      },
+      "_note": "Disabled 2026-05-07: YouTube RSS endpoint bot-detects this server IP (intermittent 200 -> persistent 404 after a burst of requests). To re-enable: switch to YouTube Data API v3 with an API key, or yt-dlp."
     }
   ]
 }

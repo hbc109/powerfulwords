@@ -79,6 +79,9 @@ def run_fetcher(spec: dict, since: date) -> list[FetchedDocument]:
     if typ == "hackernews":
         from app.fetchers.hackernews import fetch_query
         return fetch_query(**params)
+    if typ == "youtube":
+        from app.fetchers.youtube import fetch_channel
+        return fetch_channel(**params)
     raise ValueError(f"Unknown fetcher type: {typ}")
 
 
