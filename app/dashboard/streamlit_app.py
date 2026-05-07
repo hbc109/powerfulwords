@@ -134,6 +134,53 @@ def load_event_study_history():
         return pd.DataFrame()
 
 
+def load_documents_index() -> pd.DataFrame:
+    """Document inventory without the raw_text blob — kept light for the
+    Library listing. Use load_document_text(doc_id) when the user clicks one."""
+    return load_df("""
+        SELECT document_id, source_id, source_bucket, title,
+               published_at, file_path, ingested_at,
+               LENGTH(raw_text) AS chars,
+               (SELECT COUNT(*) FROM chunks WHERE document_id = documents.document_id) AS n_chunks,
+               (SELECT COUNT(*) FROM narrative_events WHERE document_id = documents.document_id) AS n_events
+        FROM documents
+        ORDER BY published_at DESC, ingested_at DESC
+    """)
+
+
+def load_document_text(doc_id: str) -> tuple[str, dict]:
+    """Fetch raw_text + metadata for one document on demand."""
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        cur = conn.execute(
+            "SELECT raw_text, source_id, source_bucket, title, "
+            "published_at, file_path, source_name "
+            "FROM documents WHERE document_id = ?",
+            (doc_id,),
+        )
+        row = cur.fetchone()
+    finally:
+        conn.close()
+    if not row:
+        return "", {}
+    raw_text, source_id, bucket, title, pub, fpath, sname = row
+    return (raw_text or ""), {
+        "source_id": source_id, "source_bucket": bucket,
+        "title": title, "published_at": pub,
+        "file_path": fpath, "source_name": sname,
+    }
+
+
+def load_document_events(doc_id: str) -> pd.DataFrame:
+    return load_df(
+        "SELECT event_time, theme, topic, direction, source_name, "
+        "credibility, confidence, evidence_text "
+        "FROM narrative_events WHERE document_id = ? "
+        "ORDER BY event_time, topic",
+        params=(doc_id,),
+    )
+
+
 def load_hypotheses_payload():
     json_path = BASE_DIR / "data" / "processed" / "research" / "strategy_hypotheses.json"
     if not json_path.exists():
@@ -295,8 +342,9 @@ c5.metric("Average Event Confidence", avg_conf)
 
 st.info(f"Main Sources: {main_sources}")
 
-tab_recs, tab_upload, tab1, tab_trends, tab2, tab3, tab_multi, tab_method = st.tabs(
-    ["Narrative Tilt", "Upload", "Overview", "Trends", "Research", "Baseline Backtest", "Baseline Multi-book", "Methodology"]
+tab_recs, tab_upload, tab_library, tab1, tab_trends, tab2, tab3, tab_multi, tab_method = st.tabs(
+    ["Narrative Tilt", "Upload", "Library", "Overview", "Trends", "Research",
+     "Baseline Backtest", "Baseline Multi-book", "Methodology"]
 )
 
 def _book_history_score(book_cfg, theme_scores_df, score_date_str):
@@ -641,6 +689,138 @@ with tab_upload:
                 for f in files[-15:]:
                     size_kb = f.stat().st_size / 1024
                     st.write(f"- `{f.name}` ({size_kb:,.1f} KB)")
+
+# --- Library: browse / search / open every ingested document ---
+with tab_library:
+    with st.expander("📖 What this tab shows", expanded=False):
+        st.markdown("""
+Every document in the database — uploaded reports, fetched RSS items,
+chatter — searchable and filterable. Use this to:
+- Find specific reports by source, date, or keyword
+- Audit what the extractor saw vs. the original source
+- Pull up the original PDF/DOCX/TXT file when you need it
+
+**Two layers of storage** behind this view:
+1. **Original files on disk** at `data/inbox/<bucket>/<source_id>/` — preserved untouched.
+2. **Database** (`data/oil_narrative.db`) — parsed text + metadata + extracted events.
+
+Click a row in the table to expand the detail panel below: metadata,
+events the extractor pulled, full extracted text, and a download
+button for the original file when it's still on disk.
+""")
+
+    docs_idx = load_documents_index()
+    if docs_idx.empty:
+        st.info("No documents in the library yet.")
+    else:
+        docs_idx["published_at"] = pd.to_datetime(docs_idx["published_at"], errors="coerce")
+        docs_idx["pub_date"] = docs_idx["published_at"].dt.strftime("%Y-%m-%d")
+
+        # ---- Filter row ----
+        f1, f2, f3 = st.columns([2, 2, 3])
+        bucket_options = ["(all)"] + sorted(docs_idx["source_bucket"].dropna().unique().tolist())
+        with f1:
+            sel_bucket = st.selectbox("Source bucket", bucket_options, index=0, key="lib_bucket")
+
+        sub_df = docs_idx if sel_bucket == "(all)" else docs_idx[docs_idx["source_bucket"] == sel_bucket]
+        source_options = ["(all)"] + sorted(sub_df["source_id"].dropna().unique().tolist())
+        with f2:
+            sel_source = st.selectbox("Source ID", source_options, index=0, key="lib_source")
+
+        with f3:
+            kw = st.text_input("Title contains (case-insensitive)", value="", key="lib_kw")
+
+        d1, d2 = st.columns(2)
+        date_min = (docs_idx["published_at"].min().date()
+                    if pd.notna(docs_idx["published_at"].min()) else date(2010, 1, 1))
+        date_max = (docs_idx["published_at"].max().date()
+                    if pd.notna(docs_idx["published_at"].max()) else date.today())
+        with d1:
+            d_from = st.date_input("From", value=date_min, min_value=date(2010, 1, 1),
+                                   max_value=date.today(), key="lib_from")
+        with d2:
+            d_to = st.date_input("To", value=date_max, min_value=date(2010, 1, 1),
+                                 max_value=date.today(), key="lib_to")
+
+        # ---- Apply filters ----
+        view = docs_idx.copy()
+        if sel_bucket != "(all)":
+            view = view[view["source_bucket"] == sel_bucket]
+        if sel_source != "(all)":
+            view = view[view["source_id"] == sel_source]
+        if kw.strip():
+            view = view[view["title"].fillna("").str.contains(kw.strip(), case=False, na=False)]
+        view = view[(view["published_at"] >= pd.Timestamp(d_from))
+                    & (view["published_at"] <= pd.Timestamp(d_to) + pd.Timedelta(days=1))]
+
+        st.caption(
+            f"**{len(view)}** documents match (out of {len(docs_idx)} total). "
+            f"Sorted newest first."
+        )
+
+        if view.empty:
+            st.write("No matches.")
+        else:
+            display_cols = ["pub_date", "source_bucket", "source_id", "title", "n_chunks", "n_events", "chars"]
+            st.dataframe(
+                view[display_cols].rename(columns={"pub_date": "published"}),
+                width="stretch", hide_index=True, height=380,
+            )
+
+            # ---- Pick one to inspect ----
+            doc_choices = view.head(200).copy()
+            doc_choices["label"] = (
+                doc_choices["pub_date"] + "  ·  "
+                + doc_choices["source_id"].fillna("?") + "  ·  "
+                + doc_choices["title"].fillna("?").str[:80]
+            )
+            picked_label = st.selectbox(
+                "Inspect a document",
+                ["—"] + doc_choices["label"].tolist(),
+                index=0, key="lib_pick",
+            )
+            if picked_label != "—":
+                picked_row = doc_choices[doc_choices["label"] == picked_label].iloc[0]
+                doc_id = picked_row["document_id"]
+                raw_text, meta = load_document_text(doc_id)
+                events_df = load_document_events(doc_id)
+
+                st.markdown(f"### {meta.get('title') or doc_id}")
+                m1, m2, m3, m4 = st.columns(4)
+                m1.metric("Source", meta.get("source_id", "—"))
+                m2.metric("Bucket", meta.get("source_bucket", "—"))
+                m3.metric("Published", str(meta.get("published_at", "—"))[:10])
+                m4.metric("Events extracted", len(events_df))
+
+                fpath = meta.get("file_path")
+                if fpath and Path(fpath).exists():
+                    p = Path(fpath)
+                    with open(p, "rb") as fh:
+                        st.download_button(
+                            f"Download original ({p.suffix} · {p.stat().st_size/1024:,.0f} KB)",
+                            data=fh.read(),
+                            file_name=p.name,
+                            mime="application/octet-stream",
+                        )
+                elif fpath:
+                    st.caption(f"Original file path on record but missing on disk: `{fpath}`")
+                else:
+                    st.caption("No original file path stored (this is normal for RSS-fetched docs).")
+
+                if not events_df.empty:
+                    with st.expander(f"Events extracted ({len(events_df)})", expanded=False):
+                        st.dataframe(events_df, width="stretch", hide_index=True)
+
+                with st.expander(f"Extracted text ({len(raw_text):,} chars)", expanded=False):
+                    if raw_text:
+                        max_chars = 20000
+                        if len(raw_text) > max_chars:
+                            st.caption(f"Showing first {max_chars:,} characters of {len(raw_text):,}.")
+                            st.text(raw_text[:max_chars])
+                        else:
+                            st.text(raw_text)
+                    else:
+                        st.write("(no text stored)")
 
 with tab1:
     with st.expander("📖 What this tab shows / how to read the scores", expanded=False):
