@@ -3,6 +3,12 @@
 A reference for how this system collects information, turns it into narrative
 events, scores them daily, and how to read the resulting numbers.
 
+> **Companion docs:**
+> [`strategy_archetypes.md`](strategy_archetypes.md) — taxonomy of trading
+> archetypes our hypotheses test against.
+> [`literature_references.md`](literature_references.md) — academic papers
+> behind each archetype, with a "what we use vs what's prescribed" gap analysis.
+
 Source code is the source of truth; this doc describes intent and constants
 as of the current state. When numbers move, update this file.
 

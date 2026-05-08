@@ -4,6 +4,10 @@ Trading does not have proven theories the way physics has proven laws. This
 file lists the major **archetypes** that carry varying degrees of academic
 and practical support, so we can place any strategy we design in context.
 
+> **For citations** to specific seminal papers behind each archetype, plus a
+> "what we actually use vs what the paper prescribes" gap analysis, see
+> [`literature_references.md`](literature_references.md).
+
 We're currently building a **news drift + sentiment fade conditioned on
 regime** combination strategy. The other archetypes are kept here as a
 menu for future experiments.
