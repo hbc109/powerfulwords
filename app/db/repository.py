@@ -35,6 +35,69 @@ def insert_document(conn: sqlite3.Connection, doc: DocumentRecord) -> None:
         ),
     )
 
+def repoint_document_date(conn: sqlite3.Connection, document_id: str, new_date: str) -> dict:
+    """Fix a wrong publication date on an already-ingested document.
+
+    Updates `documents.published_at`, propagates the change to every
+    `narrative_events.event_time` row for this document, and renames
+    the inbox file's date prefix on disk so future re-ingest reads it
+    correctly. Returns a dict summarizing what changed.
+
+    `new_date` must be ISO YYYY-MM-DD. The hh:mm:ss portion is set to
+    midnight UTC to match how ingest_folder writes dates.
+
+    Caller should re-run score_narratives.py afterwards to fold the
+    corrected date into daily_narrative_scores / daily_theme_scores.
+    """
+    from datetime import date as _date
+    from pathlib import Path
+    # Validate
+    _date.fromisoformat(new_date)
+    new_iso = f"{new_date}T00:00:00"
+
+    cur = conn.execute(
+        "SELECT published_at, file_path FROM documents WHERE document_id = ?",
+        (document_id,),
+    )
+    row = cur.fetchone()
+    if not row:
+        raise ValueError(f"document_id {document_id} not found")
+    old_iso, file_path = row
+
+    n_events = conn.execute(
+        "UPDATE narrative_events SET event_time = ? WHERE document_id = ?",
+        (new_iso, document_id),
+    ).rowcount
+    conn.execute(
+        "UPDATE documents SET published_at = ? WHERE document_id = ?",
+        (new_iso, document_id),
+    )
+
+    renamed_to = None
+    if file_path:
+        p = Path(file_path)
+        if p.exists():
+            old_prefix = p.name[:10]  # YYYY-MM-DD
+            if len(old_prefix) == 10 and old_prefix[4] == "-" and old_prefix[7] == "-":
+                new_name = new_date + p.name[10:]
+                new_path = p.with_name(new_name)
+                if new_path != p and not new_path.exists():
+                    p.rename(new_path)
+                    conn.execute(
+                        "UPDATE documents SET file_path = ? WHERE document_id = ?",
+                        (str(new_path), document_id),
+                    )
+                    renamed_to = str(new_path)
+
+    return {
+        "document_id": document_id,
+        "old_published_at": old_iso,
+        "new_published_at": new_iso,
+        "events_updated": n_events,
+        "file_renamed_to": renamed_to,
+    }
+
+
 def insert_chunks(conn: sqlite3.Connection, document_id: str, chunks: Iterable[dict]) -> None:
     for c in chunks:
         conn.execute(

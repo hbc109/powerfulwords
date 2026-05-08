@@ -1,5 +1,6 @@
 import json
 import sqlite3
+import subprocess
 import sys
 from datetime import date, datetime
 from pathlib import Path
@@ -791,6 +792,57 @@ button for the original file when it's still on disk.
                 m2.metric("Bucket", meta.get("source_bucket", "—"))
                 m3.metric("Published", str(meta.get("published_at", "—"))[:10])
                 m4.metric("Events extracted", len(events_df))
+
+                # ---- Fix wrong publication date ----
+                with st.expander("⚙ Edit publication date (use only if wrong)", expanded=False):
+                    cur_pub = str(meta.get("published_at") or "")[:10]
+                    try:
+                        cur_pub_date = (date.fromisoformat(cur_pub)
+                                        if cur_pub else date.today())
+                    except ValueError:
+                        cur_pub_date = date.today()
+                    st.caption(
+                        "Updates `documents.published_at`, every related "
+                        "`narrative_events.event_time`, and renames the inbox file "
+                        "to match. Re-runs `score_narratives.py` in the background "
+                        "so the new date flows through to the daily scores."
+                    )
+                    new_date = st.date_input(
+                        "New publication date",
+                        value=cur_pub_date,
+                        min_value=date(2010, 1, 1),
+                        max_value=date.today(),
+                        key=f"edit_date_{doc_id}",
+                    )
+                    if st.button("Apply new date", key=f"apply_{doc_id}"):
+                        if new_date.isoformat() == cur_pub:
+                            st.info("Date unchanged — nothing to do.")
+                        else:
+                            try:
+                                from app.db.repository import repoint_document_date
+                                conn = sqlite3.connect(DB_PATH)
+                                try:
+                                    res = repoint_document_date(conn, doc_id, new_date.isoformat())
+                                    conn.commit()
+                                finally:
+                                    conn.close()
+                                # Trigger background re-score so daily aggregates pick up the new date
+                                subprocess.Popen(
+                                    [sys.executable, "scripts/score_narratives.py"],
+                                    cwd=str(BASE_DIR),
+                                    stdout=subprocess.DEVNULL,
+                                    stderr=subprocess.DEVNULL,
+                                    start_new_session=True,
+                                )
+                                msg = (
+                                    f"✓ Updated. Events repointed: {res['events_updated']}.  "
+                                    + (f"File renamed to `{Path(res['file_renamed_to']).name}`."
+                                       if res.get("file_renamed_to") else "(file not on disk to rename)")
+                                    + " Re-scoring in background — refresh in ~30s."
+                                )
+                                st.success(msg)
+                            except Exception as e:
+                                st.error(f"Failed: {type(e).__name__}: {e}")
 
                 fpath = meta.get("file_path")
                 if fpath and Path(fpath).exists():
