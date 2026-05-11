@@ -13,6 +13,9 @@ env/
 .DS_Store
 Thumbs.db
 
+# Logs
+*.log
+
 # Runtime data
 data/oil_narrative.db
 data/processed/events/*

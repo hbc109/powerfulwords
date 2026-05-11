@@ -14,6 +14,8 @@ if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
 from app.strategy.recommendations import compute_recommendations as _compute_recs_core
+from app.scoring.factors import term_structure_factor
+from app.scoring.composite import composite_score
 
 DB_PATH = BASE_DIR / "data" / "oil_narrative.db"
 STRATEGY_CFG_PATH = BASE_DIR / "app" / "config" / "strategy_config.json"
@@ -387,6 +389,114 @@ def _book_history_score(book_cfg, theme_scores_df, score_date_str):
 
 
 with tab_recs:
+    st.subheader(f"Composite signal — WTI ({selected_date})")
+    st.caption(
+        "Regime-conditional weighted blend of narrative + factor scores. "
+        "All inputs are **z-scores** (today vs its own recent mean), so "
+        "weights across factors are comparable. Missing factors (momentum, "
+        "positioning, inventory) are renormalized out — to be added next."
+    )
+
+    with st.expander("📖 How to read the composite", expanded=False):
+        st.markdown(
+            """
+**What it is.** One number combining narrative + factor scores using the
+current regime's weights.
+
+**Sign = direction, magnitude = conviction.** Positive → bullish lean.
+Inputs are z-scored so values mostly land in roughly `[-1.5, +1.5]`;
+`±0.5` is a clear lean, `±1.0+` is strong. The LONG/SHORT/FLAT label
+uses a soft threshold of `|composite| > 0.1`.
+
+**z-score = how unusual is today vs its own recent mean.**
+`z = (today − 30d mean) / 30d std`. So:
+- `z = 0` → today equals the recent average.
+- `z = +1` → 1σ above. Mildly elevated.
+- `z = +2` → 2σ above. Unusually high (~5% of days).
+
+**Why this can disagree with the Narrative Tilt panel below.** The tilt
+uses raw weighted scores ("bullish vs. zero"); the composite uses z-scores
+("bullish vs. recent mean"). So narrative can be solidly positive in
+absolute terms while its z is negative — the market is bullish, but
+*less bullish than the recent average*, which the composite reads as
+cooling momentum.
+
+**Breakdown table.** Each row shows one input's z-score, its renormalized
+weight in this regime, and its contribution (z × weight) to the total.
+Lets you see at a glance which factor is driving today's signal and
+whether factors agree or pull against each other.
+"""
+        )
+
+    if not regimes.empty:
+        regimes["regime_date"] = regimes["regime_date"].astype(str)
+
+    _multi_cfg = load_multi_cfg() or {"books": []}
+    _book_by_name = {b.get("name"): b for b in _multi_cfg.get("books", [])}
+
+    def _render_composite(symbol: str, book_name: str) -> None:
+        st.markdown(f"#### {symbol}")
+
+        regime = None
+        if not regimes.empty:
+            today = regimes[(regimes["regime_date"] <= selected_date) & (regimes["symbol"] == symbol)]
+            if not today.empty:
+                regime = today.iloc[0]["primary_regime"]
+
+        book_cfg = _book_by_name.get(book_name)
+        narr_z = None
+        if book_cfg is not None and not theme_scores.empty:
+            _, narr_z = _book_history_score(book_cfg, theme_scores, selected_date)
+
+        try:
+            ts = term_structure_factor(symbol, date.fromisoformat(selected_date))
+        except Exception as e:
+            ts = None
+            st.caption(f"term_structure_factor unavailable: {e}")
+
+        if regime is None:
+            st.info(f"No {symbol} regime row available — run `python scripts/compute_regimes.py`.")
+            return
+        try:
+            comp = composite_score(regime, narr_z, {"term_structure": ts})
+        except KeyError as e:
+            st.warning(f"No regime weights configured for `{regime}`: {e}")
+            return
+
+        direction = "LONG" if comp["total"] > 0.1 else ("SHORT" if comp["total"] < -0.1 else "FLAT")
+        color = {"LONG": "#1f77b4", "SHORT": "#d62728", "FLAT": "#888888"}[direction]
+        cA, cB, cC = st.columns([1, 1, 2])
+        cA.markdown(
+            f"<div style='border-left:6px solid {color};padding-left:8px'>"
+            f"<b>Regime</b><br/><span style='color:{color}'>{regime}</span></div>",
+            unsafe_allow_html=True,
+        )
+        cB.metric("Composite", f"{comp['total']:+.3f}", delta=direction)
+        cC.write(f"narrative z = {narr_z:+.2f}σ" if narr_z is not None else "narrative z = n/a")
+        cC.write(
+            f"term_structure z = {ts:+.2f}σ" if ts is not None
+            else "term_structure z = n/a (need ≥30d of M1/M2 data)"
+        )
+
+        if comp["breakdown"]:
+            st.dataframe(
+                pd.DataFrame([
+                    {
+                        "factor": r["factor"],
+                        "value (z)": round(r["value"], 3),
+                        "weight (renorm)": round(r["weight"], 3),
+                        "contribution": round(r["contribution"], 3),
+                    }
+                    for r in comp["breakdown"]
+                ]),
+                width="stretch",
+                hide_index=True,
+            )
+
+    _render_composite("WTI", "wti_outright")
+    _render_composite("Brent", "brent_outright")
+
+    st.divider()
     st.subheader(f"Narrative tilt for {selected_date}")
 
     st.info(

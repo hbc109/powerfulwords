@@ -38,5 +38,14 @@
         "note": "Don't go short when macro is strongly bullish."
       }
     ]
+  },
+  "regime_factor_weights": {
+    "_comment": "Per-regime weights for composite_score(). Factors named here must be supplied in the `factors` dict and/or as `narrative_score`. Weights are starting priors — refit by backtest. Keys must match primary_regime labels from app/research/regime.py.",
+    "trend_up":       {"narrative": 0.20, "term_structure": 0.30, "momentum": 0.40, "positioning": 0.10},
+    "trend_down":     {"narrative": 0.20, "term_structure": 0.30, "momentum": 0.40, "positioning": 0.10},
+    "range":          {"narrative": 0.30, "term_structure": 0.20, "mean_reversion": 0.40, "positioning": 0.10},
+    "stretched_up":   {"narrative": 0.20, "term_structure": 0.20, "mean_reversion": 0.30, "positioning": 0.30},
+    "stretched_down": {"narrative": 0.20, "term_structure": 0.20, "mean_reversion": 0.30, "positioning": 0.30},
+    "shock":          {"narrative": 0.40, "inventory": 0.30, "term_structure": 0.20, "positioning": 0.10}
   }
 }

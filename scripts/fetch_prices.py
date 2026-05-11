@@ -18,6 +18,7 @@ import argparse
 
 from app.db.database import get_connection, init_db
 from app.fetchers.yfinance_prices import fetch_prices
+from app.fetchers.term_structure import fetch_term_structure
 
 
 def upsert_prices(conn, rows: list[dict]) -> int:
@@ -47,6 +48,7 @@ def main() -> None:
 
     init_db()
     rows = fetch_prices(period=args.period, interval=args.interval)
+    rows += fetch_term_structure(period=args.period, interval=args.interval)
     if not rows:
         print("No price rows returned. Yahoo may be rate-limiting; try again in a few minutes.")
         return
