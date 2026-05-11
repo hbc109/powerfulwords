@@ -354,7 +354,7 @@ c5.metric("Average Event Confidence", avg_conf)
 st.info(f"Main Sources: {main_sources}")
 
 tab_recs, tab_upload, tab_library, tab1, tab_trends, tab2, tab3, tab_multi, tab_method = st.tabs(
-    ["Narrative Tilt", "Upload", "Library", "Overview", "Trends", "Research",
+    ["Signal", "Upload", "Library", "Overview", "Trends", "Research",
      "Baseline Backtest", "Baseline Multi-book", "Methodology"]
 )
 
