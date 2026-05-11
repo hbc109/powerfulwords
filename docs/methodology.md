@@ -373,7 +373,51 @@ The threshold is exposed as a parameter (`extreme_threshold=1.0`) on
 `positioning_factor()` in `app/scoring/factors.py`; tune later if
 backtests suggest 1.0σ is too tight or too loose.
 
-### 8A.4 Composite formula
+### 8A.4 Inventory factor (EIA Weekly)
+
+Seasonal-deviation z-score across four EIA US petroleum stock series,
+equal-weight averaged into one factor. Sign-flipped so that **high
+stocks vs the seasonal baseline = bearish** (negative factor value).
+
+- **Source:** EIA Weekly Petroleum Status Report via the EIA Open Data
+  API v2 (`api.eia.gov/v2/petroleum/stoc/wstk`). Free; requires an API
+  key from `eia.gov/opendata/register.php` (set as `EIA_API_KEY` env
+  var). Updated every Wednesday ~10:30am ET (Thursday after holidays).
+- **Series included** (equal-weight average):
+
+  | Series ID | What it is | Why |
+  |---|---|---|
+  | `WCESTUS1` | US crude stocks (excl. SPR) | Headline crude balance |
+  | `W_EPC0_SAX_YCUOK_MBBL` | Cushing OK crude stocks | WTI delivery point — front-spread driver |
+  | `WGTSTUS1` | Total motor gasoline stocks | End-demand pull (refinery throughput) |
+  | `WDISTUS1` | Total distillate stocks | End-demand pull (diesel + heating oil) |
+
+**Why a seasonal baseline.** Raw inventory levels follow a strong
+annual cycle (refinery turnarounds, summer driving, winter heating).
+What matters is whether stocks are *unusually* high or low **for this
+time of year**, not vs an absolute mean. So for each series:
+
+```
+peers          = readings within ±7 days of (current week-of-year)
+                 over the trailing 5 years
+series_z       = (latest - mean(peers)) / std(peers)
+inventory_factor = -1 * mean(series_z over the 4 series)
+```
+
+Series with fewer than 3 same-week peers in the lookback are dropped
+from the average rather than failing the whole factor.
+
+**Sign convention.** Positive factor → stocks below seasonal → tight
+market → bullish. Negative → stocks above seasonal → oversupplied
+→ bearish.
+
+**Coverage.** Same factor used for WTI and Brent. US data is the
+global leading indicator (Brent–WTI weekly-balance correlation ~80%)
+and is the only **free, weekly, public** oil inventory source. JODI
+(monthly), Fujairah (FOIZ weekly), and Singapore (EnterpriseSG
+weekly) are candidates for supplementary inputs in a later iteration.
+
+### 8A.5 Composite formula
 
 For each (symbol, date):
 

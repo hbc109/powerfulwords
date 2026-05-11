@@ -14,7 +14,7 @@ if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
 from app.strategy.recommendations import compute_recommendations as _compute_recs_core
-from app.scoring.factors import term_structure_factor, positioning_factor
+from app.scoring.factors import term_structure_factor, positioning_factor, inventory_factor
 from app.scoring.composite import composite_score
 
 DB_PATH = BASE_DIR / "data" / "oil_narrative.db"
@@ -436,6 +436,42 @@ NYMEX-listed Brent contract.
 """
         )
 
+    with st.expander("📖 How inventory (EIA) works", expanded=False):
+        st.markdown(
+            """
+**What it is.** Seasonal-deviation z-score across four EIA weekly stock
+series, sign-flipped so high stocks vs seasonal = bearish.
+
+**Source.** EIA Weekly Petroleum Status Report via the Open Data API
+v2 (free, requires API key from `eia.gov/opendata`). Updated every
+Wednesday ~10:30am ET (Thursday after holidays).
+
+**Series included** (equal-weight average):
+
+| Series | Why |
+|---|---|
+| US crude stocks (excl SPR) | Headline crude balance |
+| Cushing OK crude | WTI delivery point — drives front spread |
+| Total motor gasoline | End-demand pull (refinery throughput) |
+| Total distillate | End-demand pull (diesel + heating oil) |
+
+**Why seasonal baseline.** Raw inventory levels follow a strong annual
+cycle (refinery maintenance, summer driving, winter heating). What
+matters is whether stocks are *unusually* high or low **for this time
+of year**, not vs an absolute mean. So we compare today's reading to
+the same week-of-year (±7 days) average over the trailing 5 years and
+z-score against that seasonal std.
+
+**Sign.** Positive factor → stocks below seasonal → tight market → bullish.
+Negative factor → stocks above seasonal → oversupplied → bearish.
+
+**Coverage.** Same factor used for WTI and Brent. US data is the
+global leading indicator (Brent–WTI correlation ~80% on weekly
+balances), and is the only free, weekly, public oil inventory source.
+JODI, Fujairah, Singapore can be added later as supplementary inputs.
+"""
+        )
+
     with st.expander("📖 How to read the composite", expanded=False):
         st.markdown(
             """
@@ -499,11 +535,20 @@ whether factors agree or pull against each other.
             pos = None
             st.caption(f"positioning_factor unavailable: {e}")
 
+        try:
+            inv = inventory_factor(symbol, date.fromisoformat(selected_date))
+        except Exception as e:
+            inv = None
+            st.caption(f"inventory_factor unavailable: {e}")
+
         if regime is None:
             st.info(f"No {symbol} regime row available — run `python scripts/compute_regimes.py`.")
             return
         try:
-            comp = composite_score(regime, narr_z, {"term_structure": ts, "positioning": pos})
+            comp = composite_score(
+                regime, narr_z,
+                {"term_structure": ts, "positioning": pos, "inventory": inv},
+            )
         except KeyError as e:
             st.warning(f"No regime weights configured for `{regime}`: {e}")
             return
@@ -525,6 +570,10 @@ whether factors agree or pull against each other.
         cC.write(
             f"positioning = {pos:+.2f} (contrarian, gated past 1σ extreme)" if pos is not None
             else "positioning = n/a (need ≥26 weeks of COT data)"
+        )
+        cC.write(
+            f"inventory z = {inv:+.2f}σ (high stocks vs seasonal = bearish)" if inv is not None
+            else "inventory z = n/a (set EIA_API_KEY and run scripts/fetch_prices.py)"
         )
 
         if comp["breakdown"]:

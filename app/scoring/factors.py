@@ -18,6 +18,87 @@ from app.db.database import get_connection
 
 SUPPORTED_TERM_STRUCTURE_SYMBOLS = ("WTI", "Brent")
 SUPPORTED_POSITIONING_SYMBOLS = ("WTI", "Brent")
+SUPPORTED_INVENTORY_SYMBOLS = ("WTI", "Brent")
+
+EIA_INVENTORY_SERIES = (
+    "EIA_CRUDE_STOCKS",
+    "EIA_CUSHING_STOCKS",
+    "EIA_GASOLINE_STOCKS",
+    "EIA_DISTILLATE_STOCKS",
+)
+
+
+def inventory_factor(
+    symbol: str,
+    asof: date,
+    *,
+    lookback_years: int = 5,
+    week_window_days: int = 7,
+    min_peers: int = 3,
+) -> Optional[float]:
+    """Seasonal-deviation z-score across EIA US petroleum stocks.
+
+    For each EIA series, compares the latest reading on/before `asof`
+    to the same week-of-year average over the trailing `lookback_years`,
+    then z-scores against the seasonal std. Sign-flipped so that **high
+    stocks vs seasonal = bearish factor** (negative value).
+
+    The four series (crude, Cushing, gasoline, distillate) are
+    equal-weight averaged into a single factor. Same factor is used
+    for WTI and Brent — US inventory drives global oil flows.
+
+    Returns None if no series has enough seasonal peers (`min_peers`)
+    or if the database has no recent EIA data.
+    """
+    if symbol not in SUPPORTED_INVENTORY_SYMBOLS:
+        raise NotImplementedError(
+            f"inventory_factor supports {SUPPORTED_INVENTORY_SYMBOLS}, got {symbol!r}"
+        )
+
+    conn = get_connection()
+    z_scores: list[float] = []
+    cutoff = (asof - timedelta(days=lookback_years * 365 + 30)).isoformat()
+
+    for series in EIA_INVENTORY_SERIES:
+        latest = conn.execute(
+            "SELECT price_time, close FROM market_prices "
+            "WHERE symbol=? AND price_time <= ? AND close IS NOT NULL "
+            "ORDER BY price_time DESC LIMIT 1",
+            (series, asof.isoformat()),
+        ).fetchone()
+        if not latest:
+            continue
+        latest_date = date.fromisoformat(latest[0])
+        latest_value = latest[1]
+        target_doy = latest_date.timetuple().tm_yday
+
+        rows = conn.execute(
+            "SELECT price_time, close FROM market_prices "
+            "WHERE symbol=? AND price_time < ? AND price_time >= ? AND close IS NOT NULL",
+            (series, latest_date.isoformat(), cutoff),
+        ).fetchall()
+        peers = []
+        for d_str, val in rows:
+            doy = date.fromisoformat(d_str).timetuple().tm_yday
+            diff = abs(doy - target_doy)
+            diff = min(diff, 365 - diff)
+            if diff <= week_window_days:
+                peers.append(val)
+        if len(peers) < min_peers:
+            continue
+        n = len(peers)
+        mean = sum(peers) / n
+        var = sum((v - mean) ** 2 for v in peers) / n
+        std = var ** 0.5
+        if std == 0:
+            continue
+        z_scores.append((latest_value - mean) / std)
+
+    conn.close()
+    if not z_scores:
+        return None
+    raw_z = sum(z_scores) / len(z_scores)
+    return -raw_z  # high stocks vs seasonal = bearish
 
 
 def positioning_factor(
