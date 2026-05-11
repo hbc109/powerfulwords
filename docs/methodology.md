@@ -293,6 +293,105 @@ by one big up-then-down move. More history needed.
 
 ---
 
+## 8A. Composite signal — regime-conditional factor blend
+
+Layered on top of the narrative score, the composite signal combines
+narrative with one or more market-derived factors using **regime-conditional
+weights**. The intuition: different factors have different signal value
+depending on whether the market is trending, ranging, stretched, or in
+shock — so the same factor stack should weight inputs differently per
+regime.
+
+### 8A.1 Architecture
+
+```
+narrative score (per book)              ─┐
+term structure z-score (M1−M2)          ─┤── weighted by regime ──→ composite ──→ direction
+positioning z-score (gated, contrarian) ─┤
+[future: inventory, momentum, ...]      ─┘
+```
+
+- **Regime** comes from `app/research/regime.py` (multi-label, primary
+  regime via priority: `shock` > `stretched_*` > `trend_*` > `range`).
+- **Weights per regime** live in `app/config/strategy_config.json` under
+  `regime_factor_weights`. Missing factors are renormalized out so the
+  panel never breaks when a factor is unavailable.
+- **All factors are z-scored** so weights are dimensionally comparable
+  across factors of very different raw scales.
+
+### 8A.2 Term-structure factor
+
+Front-month spread (M1 − M2) z-scored over the trailing 90 days.
+Positive = backwardation = bullish for flat price. Source: Yahoo Finance
+delivery-month tickers (e.g., `CLM26.NYM`, `CLN26.NYM`). See
+`app/fetchers/term_structure.py`.
+
+**Caveat:** the prices stored in `market_prices` are tagged under
+*today's* contract identifiers, so historical backtests beyond ~30 days
+read the *deferred* spread rather than the actual front spread that
+was trading then. A roll-aware historical fetcher is the next iteration
+when sufficient native data has accumulated.
+
+### 8A.3 Positioning factor (CFTC COT)
+
+Weekly Money-Manager net length expressed as `(MM long − MM short) / OI %`,
+z-scored over the trailing 52 weeks.
+
+- **Source:** CFTC Disaggregated Futures-and-Options Combined report
+  (Socrata API at `publicreporting.cftc.gov`, dataset `kh3c-gbw2`).
+  Updated every Friday afternoon US time with Tuesday-close data.
+- **Market identifiers** (verified live as of 2026-05):
+  - WTI → `CRUDE OIL, LIGHT SWEET-WTI - ICE FUTURES EUROPE` (the
+    legacy NYMEX identifier stopped reporting; CFTC now tracks WTI
+    flow through the ICE Europe entry)
+  - Brent → `BRENT LAST DAY - NEW YORK MERCANTILE EXCHANGE` (the
+    NYMEX-listed financially-settled Brent contract)
+
+**Why contrarian.** Money managers are momentum followers — they pile
+in near tops and capitulate near bottoms. Extreme MM net length
+therefore fades on average. Trend-following exposure is already in
+term structure (and later, momentum); doubling it up via positioning
+would just add correlation, not signal.
+
+**Why a threshold.** Below ~1σ from the trailing mean, MM positioning
+is essentially noise — the contrarian edge only shows up at extremes.
+The factor applies a **soft gate**: within ±1σ it contributes 0;
+past it the magnitude grows linearly with distance past the gate.
+
+```
+|z| ≤ 1.0σ  → factor = 0          (gated out)
+|z| > 1.0σ  → factor = -sign(z) * (|z| - 1.0)   (contrarian, scaled)
+```
+
+So z=±0.8 → 0; z=±1.5 → ∓0.5; z=±2.0 → ∓1.0.
+
+**Sign convention.** Positive factor = MMs are *less* long than usual
+= bullish (room to add). Negative = MMs are *more* long than usual
+= bearish (crowded, fade).
+
+The threshold is exposed as a parameter (`extreme_threshold=1.0`) on
+`positioning_factor()` in `app/scoring/factors.py`; tune later if
+backtests suggest 1.0σ is too tight or too loose.
+
+### 8A.4 Composite formula
+
+For each (symbol, date):
+
+```
+1. Look up regime for the symbol on the date.
+2. Pull weights[regime] from strategy_config.json.
+3. Drop factors that are None for this date; renormalize remaining weights.
+4. composite = Σ (weight_i_renorm × factor_value_i)
+5. direction = LONG if composite > 0.1 else SHORT if composite < -0.1 else FLAT
+```
+
+The breakdown table on the dashboard shows each factor's value, its
+renormalized weight, and its contribution — so when factors disagree
+(e.g., term structure bullish, positioning bearish) you can see
+immediately which one is winning the blend in this regime.
+
+---
+
 ## 9. Glossary
 
 - **Bucket** — Source category with a credibility weight. See section 3.

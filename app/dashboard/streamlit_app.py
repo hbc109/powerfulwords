@@ -14,7 +14,7 @@ if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
 from app.strategy.recommendations import compute_recommendations as _compute_recs_core
-from app.scoring.factors import term_structure_factor
+from app.scoring.factors import term_structure_factor, positioning_factor
 from app.scoring.composite import composite_score
 
 DB_PATH = BASE_DIR / "data" / "oil_narrative.db"
@@ -397,6 +397,45 @@ with tab_recs:
         "positioning, inventory) are renormalized out — to be added next."
     )
 
+    with st.expander("📖 How positioning (COT) works", expanded=False):
+        st.markdown(
+            """
+**What it is.** Weekly Money-Manager net length from the CFTC
+Commitments of Traders report, expressed as `(MM long − MM short) / OI %`,
+then z-scored over the trailing 52 weeks.
+
+**Source.** CFTC Disaggregated Futures-and-Options Combined report
+(public Socrata API at `publicreporting.cftc.gov`, dataset `kh3c-gbw2`).
+Updated every Friday afternoon US time with Tuesday-close data.
+
+**Why contrarian.** Money managers are momentum followers — they pile in
+near tops and capitulate near bottoms. Extreme MM net length therefore
+fades on average. Trend-following exposure is already captured by term
+structure (and later, momentum factors); doubling down on it via
+positioning would just add correlation, not signal.
+
+**Why a threshold.** Below ~1σ from the trailing mean, MM positioning
+is essentially noise — the contrarian edge only shows up at extremes.
+The factor uses a soft gate: within ±1σ it contributes **0**; past it
+the magnitude grows linearly with distance past the gate.
+
+| raw z-score | factor value |
+|---|---|
+| ±0.5σ | 0.0 (gated out) |
+| ±0.8σ | 0.0 (gated out) |
+| ±1.5σ | ∓0.5 |
+| ±2.0σ | ∓1.0 |
+
+**Sign.** Positive factor → MMs are *less* long than usual → bullish (room to add).
+Negative factor → MMs are *more* long than usual → bearish (crowded, fade).
+
+**Coverage.** WTI uses the `CRUDE OIL, LIGHT SWEET-WTI - ICE FUTURES EUROPE`
+entry (the legacy NYMEX identifier stopped reporting). Brent uses
+`BRENT LAST DAY - NEW YORK MERCANTILE EXCHANGE` — the financially-settled
+NYMEX-listed Brent contract.
+"""
+        )
+
     with st.expander("📖 How to read the composite", expanded=False):
         st.markdown(
             """
@@ -454,11 +493,17 @@ whether factors agree or pull against each other.
             ts = None
             st.caption(f"term_structure_factor unavailable: {e}")
 
+        try:
+            pos = positioning_factor(symbol, date.fromisoformat(selected_date))
+        except Exception as e:
+            pos = None
+            st.caption(f"positioning_factor unavailable: {e}")
+
         if regime is None:
             st.info(f"No {symbol} regime row available — run `python scripts/compute_regimes.py`.")
             return
         try:
-            comp = composite_score(regime, narr_z, {"term_structure": ts})
+            comp = composite_score(regime, narr_z, {"term_structure": ts, "positioning": pos})
         except KeyError as e:
             st.warning(f"No regime weights configured for `{regime}`: {e}")
             return
@@ -476,6 +521,10 @@ whether factors agree or pull against each other.
         cC.write(
             f"term_structure z = {ts:+.2f}σ" if ts is not None
             else "term_structure z = n/a (need ≥30d of M1/M2 data)"
+        )
+        cC.write(
+            f"positioning = {pos:+.2f} (contrarian, gated past 1σ extreme)" if pos is not None
+            else "positioning = n/a (need ≥26 weeks of COT data)"
         )
 
         if comp["breakdown"]:

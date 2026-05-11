@@ -17,7 +17,7 @@ Thumbs.db
 *.log
 
 # Runtime data
-data/oil_narrative.db
+data/oil_narrative.db*
 data/processed/events/*
 data/processed/signals/*
 data/processed/research/*
