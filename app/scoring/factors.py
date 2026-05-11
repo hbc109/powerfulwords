@@ -20,11 +20,12 @@ SUPPORTED_TERM_STRUCTURE_SYMBOLS = ("WTI", "Brent")
 SUPPORTED_POSITIONING_SYMBOLS = ("WTI", "Brent")
 SUPPORTED_INVENTORY_SYMBOLS = ("WTI", "Brent")
 
-EIA_INVENTORY_SERIES = (
+INVENTORY_SERIES = (
     "EIA_CRUDE_STOCKS",
     "EIA_CUSHING_STOCKS",
     "EIA_GASOLINE_STOCKS",
     "EIA_DISTILLATE_STOCKS",
+    "JODI_OECD_CRUDE_STOCKS",
 )
 
 
@@ -59,7 +60,7 @@ def inventory_factor(
     z_scores: list[float] = []
     cutoff = (asof - timedelta(days=lookback_years * 365 + 30)).isoformat()
 
-    for series in EIA_INVENTORY_SERIES:
+    for series in INVENTORY_SERIES:
         latest = conn.execute(
             "SELECT price_time, close FROM market_prices "
             "WHERE symbol=? AND price_time <= ? AND close IS NOT NULL "

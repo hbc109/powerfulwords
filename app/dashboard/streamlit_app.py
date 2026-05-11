@@ -448,12 +448,13 @@ Wednesday ~10:30am ET (Thursday after holidays).
 
 **Series included** (equal-weight average):
 
-| Series | Why |
-|---|---|
-| US crude stocks (excl SPR) | Headline crude balance |
-| Cushing OK crude | WTI delivery point — drives front spread |
-| Total motor gasoline | End-demand pull (refinery throughput) |
-| Total distillate | End-demand pull (diesel + heating oil) |
+| Series | Cadence | Why |
+|---|---|---|
+| EIA US crude stocks (excl SPR) | Weekly | Headline crude balance |
+| EIA Cushing OK crude | Weekly | WTI delivery point — drives front spread |
+| EIA Total motor gasoline | Weekly | End-demand pull (refinery throughput) |
+| EIA Total distillate | Weekly | End-demand pull (diesel + heating oil) |
+| JODI OECD crude stocks | Monthly (lag ~6-8 weeks) | International (Europe + Asia) context EIA misses |
 
 **Why seasonal baseline.** Raw inventory levels follow a strong annual
 cycle (refinery maintenance, summer driving, winter heating). What
@@ -465,10 +466,15 @@ z-score against that seasonal std.
 **Sign.** Positive factor → stocks below seasonal → tight market → bullish.
 Negative factor → stocks above seasonal → oversupplied → bearish.
 
-**Coverage.** Same factor used for WTI and Brent. US data is the
+**Coverage.** Same factor used for WTI and Brent. EIA US data is the
 global leading indicator (Brent–WTI correlation ~80% on weekly
-balances), and is the only free, weekly, public oil inventory source.
-JODI, Fujairah, Singapore can be added later as supplementary inputs.
+balances). JODI adds international crude context (sum of US, JP, DE,
+FR, GB, IT, ES, NL, KR, CA, AU closing stocks) but is monthly and
+lagged, so its same-week-of-year peer count is much lower than EIA's
+(~5 vs ~11) — it nudges the factor without dominating it.
+
+Fujairah (FOIZ weekly) and Singapore (EnterpriseSG weekly) are
+candidates for a future iteration when scraping is built.
 """
         )
 

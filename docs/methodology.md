@@ -385,12 +385,24 @@ stocks vs the seasonal baseline = bearish** (negative factor value).
   var). Updated every Wednesday ~10:30am ET (Thursday after holidays).
 - **Series included** (equal-weight average):
 
-  | Series ID | What it is | Why |
-  |---|---|---|
-  | `WCESTUS1` | US crude stocks (excl. SPR) | Headline crude balance |
-  | `W_EPC0_SAX_YCUOK_MBBL` | Cushing OK crude stocks | WTI delivery point — front-spread driver |
-  | `WGTSTUS1` | Total motor gasoline stocks | End-demand pull (refinery throughput) |
-  | `WDISTUS1` | Total distillate stocks | End-demand pull (diesel + heating oil) |
+  | Series ID | Cadence | What it is | Why |
+  |---|---|---|---|
+  | `WCESTUS1` | Weekly | US crude stocks (excl. SPR) | Headline crude balance |
+  | `W_EPC0_SAX_YCUOK_MBBL` | Weekly | Cushing OK crude stocks | WTI delivery point — front-spread driver |
+  | `WGTSTUS1` | Weekly | Total motor gasoline stocks | End-demand pull (refinery throughput) |
+  | `WDISTUS1` | Weekly | Total distillate stocks | End-demand pull (diesel + heating oil) |
+  | `JODI_OECD_CRUDE_STOCKS` | Monthly (lag ~6-8 weeks) | Sum of CRUDEOIL CLOSTLV across the OECD basket (US, JP, DE, FR, GB, IT, ES, NL, KR, CA, AU) | International (Europe + Asia) context EIA misses |
+
+  JODI primary data only carries crude-side products (CRUDEOIL, NGL,
+  OTHERCRUDE, TOTCRUDE) — there's no gasoline / distillate / jet there.
+  Refined-product international coverage would require the JODI
+  *secondary* dataset; for now we only pull JODI crude because EIA
+  already covers US products well, and the value-add of JODI is
+  international **crude** context.
+
+  JODI is fetched directly from `jodidata.org` annual primary CSVs
+  (`/_resources/files/downloads/oil-data/annual-csv/primary/{year}.csv`),
+  no API key required.
 
 **Why a seasonal baseline.** Raw inventory levels follow a strong
 annual cycle (refinery turnarounds, summer driving, winter heating).
@@ -411,11 +423,18 @@ from the average rather than failing the whole factor.
 market → bullish. Negative → stocks above seasonal → oversupplied
 → bearish.
 
-**Coverage.** Same factor used for WTI and Brent. US data is the
-global leading indicator (Brent–WTI weekly-balance correlation ~80%)
-and is the only **free, weekly, public** oil inventory source. JODI
-(monthly), Fujairah (FOIZ weekly), and Singapore (EnterpriseSG
-weekly) are candidates for supplementary inputs in a later iteration.
+**Coverage.** Same factor used for WTI and Brent. EIA US data is the
+weekly headline (Brent–WTI weekly-balance correlation ~80%); JODI
+adds international crude context but is monthly + lagged, so its
+same-week-of-year peer count is much lower (~5 across 5 years vs ~11
+for EIA, since JODI matches only one calendar month per year while
+EIA's ±7-day window spans two adjacent weekly readings per year).
+That naturally weights EIA more in the average without an explicit
+weight knob.
+
+Fujairah (FOIZ weekly, Middle East hub) and Singapore (EnterpriseSG
+weekly, Asia hub) are candidates for future iterations when scraping
+is built.
 
 ### 8A.5 Composite formula
 
