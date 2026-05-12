@@ -131,7 +131,7 @@ def backtest_symbol(symbol: str, book_name: str) -> dict:
         except Exception:
             pos, inv = None, None
         try:
-            full = composite_score(regime, nz, {"positioning": pos, "inventory": inv})["total"]
+            full = composite_score(symbol, regime, nz, {"positioning": pos, "inventory": inv})["total"]
         except KeyError:
             continue
         rec = {

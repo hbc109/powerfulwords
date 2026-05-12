@@ -22,14 +22,27 @@ def _load_weights() -> dict:
     return cfg.get("regime_factor_weights", {})
 
 
+def _resolve_weights_for_symbol(table: dict, symbol: str, regime: str) -> dict:
+    """Look up symbol-specific regime weights, falling back to WTI."""
+    sym_table = table.get(symbol)
+    if not isinstance(sym_table, dict):
+        sym_table = table.get("WTI")  # default
+    if not isinstance(sym_table, dict):
+        raise KeyError("regime_factor_weights has no per-symbol tables (expected at least 'WTI').")
+    if regime not in sym_table:
+        raise KeyError(f"No regime_factor_weights[{symbol!r}][{regime!r}] entry.")
+    return sym_table[regime]
+
+
 def composite_score(
+    symbol: str,
     regime: str,
     narrative_score: Optional[float],
     factors: dict,
     *,
     weights_override: Optional[dict] = None,
 ) -> dict:
-    """Combine narrative + factors using the weights for `regime`.
+    """Combine narrative + factors using the weights for (symbol, regime).
 
     `factors` is e.g. {"term_structure": 0.45, "momentum": -0.8}.
     Missing factors get zero contribution; extras are ignored. Weights
@@ -47,9 +60,8 @@ def composite_score(
       }
     """
     table = weights_override if weights_override is not None else _load_weights()
-    if regime not in table:
-        raise KeyError(f"No regime_factor_weights entry for regime {regime!r}")
-    weights = {k: v for k, v in table[regime].items() if not k.startswith("_")}
+    regime_weights = _resolve_weights_for_symbol(table, symbol, regime)
+    weights = {k: v for k, v in regime_weights.items() if not k.startswith("_")}
 
     inputs = dict(factors)
     if narrative_score is not None:

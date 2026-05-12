@@ -40,12 +40,22 @@
     ]
   },
   "regime_factor_weights": {
-    "_comment": "Per-regime weights for composite_score(). Factors named here must be supplied in the `factors` dict and/or as `narrative_score`. Tuned 2026-05-12 from backtest (see data/processed/backtests/composite_validation.json): in `range` and `stretched_up` the composite was hurting the narrative-only baseline, so narrative weight is bumped and non-narrative factors trimmed. Other regimes (trend_*, shock, stretched_down) showed positive uplift and were left as-is.",
-    "trend_up":       {"narrative": 0.20, "term_structure": 0.25, "momentum": 0.30, "positioning": 0.10, "inventory": 0.15},
-    "trend_down":     {"narrative": 0.20, "term_structure": 0.25, "momentum": 0.30, "positioning": 0.10, "inventory": 0.15},
-    "range":          {"narrative": 0.55, "term_structure": 0.10, "mean_reversion": 0.20, "positioning": 0.05, "inventory": 0.10},
-    "stretched_up":   {"narrative": 0.40, "term_structure": 0.10, "mean_reversion": 0.20, "positioning": 0.15, "inventory": 0.15},
-    "stretched_down": {"narrative": 0.15, "term_structure": 0.15, "mean_reversion": 0.25, "positioning": 0.25, "inventory": 0.20},
-    "shock":          {"narrative": 0.35, "inventory": 0.30, "term_structure": 0.20, "positioning": 0.15}
+    "_comment": "Per-symbol, per-regime weights for composite_score(). Tuned 2026-05-12 from backtest (data/processed/backtests/composite_validation.json). WTI and Brent have asymmetric regime characteristics — most notably Brent narrative dominates in trend_up and stretched_down, while WTI's non-narrative factors carry weight there. composite_score(symbol, ...) looks up the symbol's table; falls back to WTI's table for unknown symbols.",
+    "WTI": {
+      "trend_up":       {"narrative": 0.20, "term_structure": 0.25, "momentum": 0.30, "positioning": 0.10, "inventory": 0.15},
+      "trend_down":     {"narrative": 0.20, "term_structure": 0.25, "momentum": 0.30, "positioning": 0.10, "inventory": 0.15},
+      "range":          {"narrative": 0.55, "term_structure": 0.10, "mean_reversion": 0.20, "positioning": 0.05, "inventory": 0.10},
+      "stretched_up":   {"narrative": 0.40, "term_structure": 0.10, "mean_reversion": 0.20, "positioning": 0.15, "inventory": 0.15},
+      "stretched_down": {"narrative": 0.15, "term_structure": 0.15, "mean_reversion": 0.25, "positioning": 0.25, "inventory": 0.20},
+      "shock":          {"narrative": 0.35, "inventory": 0.30, "term_structure": 0.20, "positioning": 0.15}
+    },
+    "Brent": {
+      "trend_up":       {"narrative": 0.60, "term_structure": 0.10, "momentum": 0.10, "positioning": 0.05, "inventory": 0.15},
+      "trend_down":     {"narrative": 0.20, "term_structure": 0.25, "momentum": 0.30, "positioning": 0.10, "inventory": 0.15},
+      "range":          {"narrative": 0.55, "term_structure": 0.10, "mean_reversion": 0.20, "positioning": 0.05, "inventory": 0.10},
+      "stretched_up":   {"narrative": 0.40, "term_structure": 0.10, "mean_reversion": 0.20, "positioning": 0.15, "inventory": 0.15},
+      "stretched_down": {"narrative": 0.50, "term_structure": 0.10, "mean_reversion": 0.15, "positioning": 0.15, "inventory": 0.10},
+      "shock":          {"narrative": 0.35, "inventory": 0.30, "term_structure": 0.20, "positioning": 0.15}
+    }
   }
 }

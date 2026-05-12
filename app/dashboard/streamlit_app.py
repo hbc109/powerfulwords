@@ -521,17 +521,21 @@ whether factors agree or pull against each other.
     _VALIDATION = {
         "WTI": {
             "level": "success",
-            "msg": ("**Backtest-validated.** Over 250 trading days (2023-05 → 2026-05), the composite "
-                    "beats narrative-only by **+1.4pp** on 5-day hit-rate (56.2% vs 54.8%) and **+4.2pp** "
+            "msg": ("**Backtest-validated.** Over 251 trading days (2023-05 → 2026-05), the composite "
+                    "beats narrative-only by **+1.5pp** on 5-day hit-rate (56.5% vs 55.0%) and **+4.1pp** "
                     "on 10-day. Strongest uplift in `shock` (+6.1pp) and `trend_*` (+3.6 to +4.3pp). "
-                    "Effectively neutral in `range` after weight tuning. Treat as a decision input."),
+                    "Effectively neutral in `range` and `stretched_down` after weight tuning. "
+                    "Treat as a decision input."),
         },
         "Brent": {
             "level": "warning",
-            "msg": ("**Cautionary — still under-performs narrative-only on aggregate.** Composite 5-day "
-                    "hit-rate 50.3% vs narrative-only 55.6% (−5.3pp). Brent composite has a known weakness "
-                    "in `trend_up` (−17.9pp) and `stretched_down` (−28pp) that the current regime weights "
-                    "(tuned mostly from WTI) don't fix. Use as supplementary context; defer to narrative tilt below for Brent."),
+            "msg": ("**Cautionary — still under narrative-only on aggregate, but the gap has closed.** "
+                    "Composite 5-day hit-rate 53.4% vs narrative-only 55.8% (−2.4pp; was −5.3pp before "
+                    "per-symbol Brent tuning). The previously catastrophic `trend_up` and `stretched_down` "
+                    "regimes are much improved (−17.9pp → −6.8pp; −28pp → −10pp). Non-narrative factors "
+                    "still cost Brent slightly on average — US inventory and COT are less leading for "
+                    "Brent than for WTI. Use composite for factor transparency; defer to narrative tilt "
+                    "below when in doubt."),
         },
     }
 
@@ -575,11 +579,11 @@ whether factors agree or pull against each other.
             return
         try:
             comp = composite_score(
-                regime, narr_z,
+                symbol, regime, narr_z,
                 {"term_structure": ts, "positioning": pos, "inventory": inv},
             )
         except KeyError as e:
-            st.warning(f"No regime weights configured for `{regime}`: {e}")
+            st.warning(f"No regime weights configured for ({symbol}, {regime}): {e}")
             return
 
         direction = "LONG" if comp["total"] > 0.1 else ("SHORT" if comp["total"] < -0.1 else "FLAT")
