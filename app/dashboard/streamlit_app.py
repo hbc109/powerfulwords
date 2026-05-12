@@ -921,6 +921,74 @@ with tab_upload:
                     "to see updated scores. Logs at `/tmp/upload_pipeline.log`."
                 )
 
+        st.markdown("---")
+        st.subheader("Or paste an email / text body directly")
+        st.caption(
+            "Browsers can't accept Outlook drag-and-drop (proprietary "
+            "clipboard format), so paste the body here instead. Reuses the "
+            "**source** and **date** picked above. Saved as a `.txt` file "
+            "into the same inbox folder, then run through the same ingest pipeline."
+        )
+
+        paste_title = st.text_input(
+            "Subject / short title (required — used in the filename)",
+            placeholder="e.g. gs_morning_note_apr18",
+            key="paste_title_input",
+        )
+        paste_body = st.text_area(
+            "Paste email / text body",
+            height=240,
+            placeholder="Paste the full email body here. Include any header lines "
+                        "(From / Subject / Date) you want preserved — the ingester will see all of it.",
+            key="paste_body_input",
+        )
+
+        paste_blocked = (
+            not paste_body.strip()
+            or not paste_title.strip()
+            or picked_date is None
+        )
+        if paste_body.strip() and picked_date is None:
+            st.warning("Pick a publication date above before saving pasted text.")
+        if paste_body.strip() and not paste_title.strip():
+            st.warning("Enter a subject / short title before saving pasted text.")
+
+        save_paste = st.button(
+            "Save pasted text to inbox",
+            type="primary",
+            disabled=paste_blocked,
+            key="save_paste_btn",
+        )
+
+        if save_paste and not paste_blocked:
+            target_folder = INBOX_ROOT / sel_bucket / sel_source_id
+            target_folder.mkdir(parents=True, exist_ok=True)
+            slug = _slugify(paste_title)
+            target_path = target_folder / f"{picked_date.isoformat()}_{slug}.txt"
+            n = 1
+            while target_path.exists():
+                n += 1
+                target_path = target_folder / f"{picked_date.isoformat()}_{slug}_{n}.txt"
+            target_path.write_text(paste_body, encoding="utf-8")
+            st.success(f"Saved {target_path.relative_to(BASE_DIR)} ({len(paste_body):,} chars)")
+
+            if run_pipeline:
+                log_path = Path("/tmp/upload_pipeline.log")
+                cmd = (
+                    f"{sys.executable} scripts/ingest_folder.py >> {log_path} 2>&1 && "
+                    f"{sys.executable} scripts/extract_narratives.py --mode auto >> {log_path} 2>&1 && "
+                    f"{sys.executable} scripts/score_narratives.py >> {log_path} 2>&1"
+                )
+                subprocess.Popen(
+                    cmd, shell=True, cwd=str(BASE_DIR),
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    start_new_session=True,
+                )
+                st.success(
+                    "Pipeline kicked off in background — refresh in ~1-2 minutes "
+                    "to see updated scores. Logs at `/tmp/upload_pipeline.log`."
+                )
+
     st.divider()
     st.markdown(
         "**Filename convention.** Files are saved as "
