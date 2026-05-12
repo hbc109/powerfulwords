@@ -930,6 +930,14 @@ with tab_upload:
             "into the same inbox folder, then run through the same ingest pipeline."
         )
 
+        # Clear the paste fields on the run AFTER a successful save (Streamlit
+        # only lets us mutate widget-bound session_state before the widget renders).
+        if st.session_state.pop("_clear_paste_next_run", False):
+            st.session_state["paste_title_input"] = ""
+            st.session_state["paste_body_input"] = ""
+        for _msg in st.session_state.pop("_paste_success_msgs", []):
+            st.success(_msg)
+
         paste_title = st.text_input(
             "Subject / short title (required — used in the filename)",
             placeholder="e.g. gs_morning_note_apr18",
@@ -970,7 +978,7 @@ with tab_upload:
                 n += 1
                 target_path = target_folder / f"{picked_date.isoformat()}_{slug}_{n}.txt"
             target_path.write_text(paste_body, encoding="utf-8")
-            st.success(f"Saved {target_path.relative_to(BASE_DIR)} ({len(paste_body):,} chars)")
+            msgs = [f"Saved {target_path.relative_to(BASE_DIR)} ({len(paste_body):,} chars)"]
 
             if run_pipeline:
                 log_path = Path("/tmp/upload_pipeline.log")
@@ -984,10 +992,51 @@ with tab_upload:
                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                     start_new_session=True,
                 )
-                st.success(
+                msgs.append(
                     "Pipeline kicked off in background — refresh in ~1-2 minutes "
                     "to see updated scores. Logs at `/tmp/upload_pipeline.log`."
                 )
+
+            st.session_state["_paste_success_msgs"] = msgs
+            st.session_state["_clear_paste_next_run"] = True
+            st.rerun()
+
+    st.divider()
+    st.subheader("Manual pipeline trigger")
+    st.caption(
+        "Run ingest → extract → score on whatever is currently in `data/inbox/`. "
+        "Useful when you saved with the auto-checkbox off, or dropped files "
+        "into the inbox folder from outside the dashboard. Logs append to "
+        "`/tmp/upload_pipeline.log`."
+    )
+    col_t1, col_t2 = st.columns([1, 3])
+    with col_t1:
+        run_now = st.button("Run ingest pipeline now", type="secondary", key="manual_pipeline_btn")
+    with col_t2:
+        show_log = st.checkbox("Show last 30 lines of pipeline log", value=False, key="show_log_chk")
+    if run_now:
+        log_path = Path("/tmp/upload_pipeline.log")
+        cmd = (
+            f"{sys.executable} scripts/ingest_folder.py >> {log_path} 2>&1 && "
+            f"{sys.executable} scripts/extract_narratives.py --mode auto >> {log_path} 2>&1 && "
+            f"{sys.executable} scripts/score_narratives.py >> {log_path} 2>&1"
+        )
+        subprocess.Popen(
+            cmd, shell=True, cwd=str(BASE_DIR),
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+        st.success(
+            "Pipeline kicked off in background — refresh in ~1-2 minutes to see "
+            "updated scores. Tick **Show last 30 lines** above to inspect progress."
+        )
+    if show_log:
+        log_path = Path("/tmp/upload_pipeline.log")
+        if log_path.exists():
+            tail = log_path.read_text(errors="replace").splitlines()[-30:]
+            st.code("\n".join(tail) or "(empty)", language="text")
+        else:
+            st.caption("(log file not created yet — run the pipeline at least once)")
 
     st.divider()
     st.markdown(
