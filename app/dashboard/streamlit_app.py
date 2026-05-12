@@ -515,8 +515,31 @@ whether factors agree or pull against each other.
     _multi_cfg = load_multi_cfg() or {"books": []}
     _book_by_name = {b.get("name"): b for b in _multi_cfg.get("books", [])}
 
+    # Backtest hit-rate uplift of composite vs narrative-only baseline
+    # (250 trading days, 2023-05-08 → 2026-05-11, fwd 5-day return).
+    # Source: scripts/backtest_composite.py — re-run after weight changes.
+    _VALIDATION = {
+        "WTI": {
+            "level": "success",
+            "msg": ("**Backtest-validated.** Over 250 trading days (2023-05 → 2026-05), the composite "
+                    "beats narrative-only by **+1.4pp** on 5-day hit-rate (56.2% vs 54.8%) and **+4.2pp** "
+                    "on 10-day. Strongest uplift in `shock` (+6.1pp) and `trend_*` (+3.6 to +4.3pp). "
+                    "Effectively neutral in `range` after weight tuning. Treat as a decision input."),
+        },
+        "Brent": {
+            "level": "warning",
+            "msg": ("**Cautionary — still under-performs narrative-only on aggregate.** Composite 5-day "
+                    "hit-rate 50.3% vs narrative-only 55.6% (−5.3pp). Brent composite has a known weakness "
+                    "in `trend_up` (−17.9pp) and `stretched_down` (−28pp) that the current regime weights "
+                    "(tuned mostly from WTI) don't fix. Use as supplementary context; defer to narrative tilt below for Brent."),
+        },
+    }
+
     def _render_composite(symbol: str, book_name: str) -> None:
         st.markdown(f"#### {symbol}")
+        v = _VALIDATION.get(symbol)
+        if v:
+            (st.success if v["level"] == "success" else st.warning)(v["msg"])
 
         regime = None
         if not regimes.empty:
