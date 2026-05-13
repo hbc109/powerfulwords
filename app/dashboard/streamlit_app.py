@@ -938,11 +938,21 @@ with tab_upload:
         for _msg in st.session_state.pop("_paste_success_msgs", []):
             st.success(_msg)
 
-        paste_title = st.text_input(
-            "Subject / short title (required — used in the filename)",
-            placeholder="e.g. gs_morning_note_apr18",
-            key="paste_title_input",
-        )
+        col_p1, col_p2 = st.columns([2, 1])
+        with col_p1:
+            paste_title = st.text_input(
+                "Subject / short title (required — used in the filename)",
+                placeholder="e.g. gs_morning_note_apr18",
+                key="paste_title_input",
+            )
+        with col_p2:
+            paste_pub_date = st.date_input(
+                "Publication date  ⚠ when the email was *written*",
+                value=picked_date,  # defaults to whatever's set above; can be overridden here
+                min_value=_date(2010, 1, 1),
+                max_value=_date.today(),
+                key="paste_pub_date",
+            )
         paste_body = st.text_area(
             "Paste email / text body",
             height=240,
@@ -954,10 +964,10 @@ with tab_upload:
         paste_blocked = (
             not paste_body.strip()
             or not paste_title.strip()
-            or picked_date is None
+            or paste_pub_date is None
         )
-        if paste_body.strip() and picked_date is None:
-            st.warning("Pick a publication date above before saving pasted text.")
+        if paste_body.strip() and paste_pub_date is None:
+            st.warning("Pick a publication date before saving pasted text.")
         if paste_body.strip() and not paste_title.strip():
             st.warning("Enter a subject / short title before saving pasted text.")
 
@@ -972,11 +982,11 @@ with tab_upload:
             target_folder = INBOX_ROOT / sel_bucket / sel_source_id
             target_folder.mkdir(parents=True, exist_ok=True)
             slug = _slugify(paste_title)
-            target_path = target_folder / f"{picked_date.isoformat()}_{slug}.txt"
+            target_path = target_folder / f"{paste_pub_date.isoformat()}_{slug}.txt"
             n = 1
             while target_path.exists():
                 n += 1
-                target_path = target_folder / f"{picked_date.isoformat()}_{slug}_{n}.txt"
+                target_path = target_folder / f"{paste_pub_date.isoformat()}_{slug}_{n}.txt"
             target_path.write_text(paste_body, encoding="utf-8")
             msgs = [f"Saved {target_path.relative_to(BASE_DIR)} ({len(paste_body):,} chars)"]
 
