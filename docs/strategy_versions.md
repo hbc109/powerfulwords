@@ -1,0 +1,137 @@
+# Strategy versions log
+
+Tracks the trading strategy as it evolves — weights, factors, thresholds,
+execution rules — with the date of each change, the metric that motivated
+it, and the next-period result. The point is to make iteration honest:
+without a written log, it's too easy to forget what we tried, why, and
+whether it actually worked.
+
+---
+
+## Where we sit vs pro shops
+
+What we've built sits squarely in the **systematic commodity macro**
+lineage — same DNA as CTAs (AHL, Winton, Aspect), commodity macro funds
+(Castleton, Trafigura analytics, Glencore's risk book) and sell-side
+commodity desks (Goldman, Morgan Stanley). Multi-source ingestion,
+factor extraction, regime classification, regime-conditional weighting,
+composite signal, backtest with hit-rate / Sharpe / drawdown.
+
+The gap is **not conceptual** — it's discipline, infrastructure, scale:
+
+| Dimension | This system | Pro shop |
+|---|---|---|
+| Factor count | 4 (narrative, term structure, positioning, inventory) | 50–200 |
+| Symbols | 2 (WTI, Brent) | 50–500 across asset classes |
+| Data cadence | Daily / weekly | Tick-level + intraday |
+| Risk management | None yet | Vol-targeting, Kelly sizing, position limits, factor-exposure caps |
+| Execution | Close-to-close, 5bps fixed | Smart routing, slippage models, execution alpha |
+| Statistical rigor | Single backtest | Walk-forward, bootstrap CIs, regime-change detection |
+| Out-of-sample discipline | About to start | Locked-in, weekly evaluation |
+| Team | 1 | 10–100+ |
+
+What actually separates pro shops from "retail multi-factor model"
+attempts is rarely a secret factor — it's:
+
+1. **Real statistical discipline** (out-of-sample, multiple-hypothesis
+   correction, sample-size requirements before any change).
+2. **Proper risk management** that prevents one bad regime from sinking
+   the book.
+3. **Obsessive attention to execution costs** — slippage usually eats
+   more PnL than signal "improvements".
+4. **Killing models when the data says they're broken**, instead of
+   re-tuning them to recent noise.
+
+Realistic edge for a one-person setup isn't beating them on factor
+count — it's leaning into what they *can't* easily do: **fewer markets
+much more deeply**, **more concentrated bets** (no LP-aware drawdown
+limits), and **qualitative judgment** as a final filter.
+
+---
+
+## Iteration discipline
+
+Rules for changing the strategy after v1:
+
+1. **New data is out-of-sample, not training data.** We tuned weights
+   from the 2023–2026 backtest. Do not re-tune on 2026-05-15+ results;
+   use them as a *test* of whether tuned weights still work.
+2. **Bar for change.** Only re-tune if the rolling 6-month backtest
+   underperforms baseline by **>2pp** *and* the gap is consistent
+   across multiple regimes *and* a structural explanation exists
+   ("EIA stopped publishing X", regime shift, etc.).
+3. **Always log it here.** Date, what changed, the metric that
+   motivated it, and after at least one month: did it help.
+4. **Walk-forward later.** Eventually replace single-shot backtests
+   with walk-forward (refit on 2023–2024, test on 2025; refit on
+   2024–2025, test on 2026; etc.).
+5. **The "do nothing" baseline.** Always compare any proposed change
+   to *not* changing. Half the time the right call is to leave it.
+
+---
+
+## Version history
+
+### v1 — 2026-05-14 — initial composite signal
+
+**State at lock-in:**
+
+- **Factors**: narrative (theme z-score), positioning (CFTC COT,
+  contrarian, gated past 1σ), inventory (EIA + JODI seasonal-deviation
+  z, equal-weight average), term_structure (WTI/Brent M1-M2 spread z) —
+  the last is in the dashboard but excluded from backtests because
+  historical data is biased deferred-spread proxy.
+- **Regime classification**: `app/research/regime.py` — multi-label
+  (`trend_up`, `trend_down`, `range`, `stretched_up`, `stretched_down`,
+  `shock`), priority-collapsed to a single `primary_regime`.
+- **Per-symbol regime weights** in `app/config/strategy_config.json`
+  — Brent and WTI tuned independently because their per-regime
+  characteristics diverged (Brent's `trend_up` and `stretched_down`
+  needed much higher narrative weight; WTI's didn't).
+- **Composite formula**: weighted sum of available factors per
+  regime, weights renormalized over factors actually present.
+- **Position sizing**: linear thresholded — `composite > 0.1 → 1x`,
+  `> 0.4 → 2x`, max 2x. No vol-targeting, no Kelly, no stops.
+  `one_way_cost = 5bps`.
+
+**Backtest result (2023-05-08 → 2026-05-11, 251 trading days):**
+
+| Symbol | Composite vs narrative-only (5d hit rate) | Composite PnL backtest |
+|---|---|---|
+| WTI | **+1.5pp** (56.5% vs 55.0%) | +67.8% return, 0.64 Sharpe, −35.5% max DD |
+| Brent | −2.4pp (53.4% vs 55.8%) | +3.1% return, 0.21 Sharpe, −46.4% max DD |
+
+**Honest assessment:**
+
+- WTI composite earns its keep on hit-rate and PnL.
+- Brent composite is essentially flat; non-narrative factors (US-centric
+  inventory, COT) are less leading for Brent than for WTI. Pushing
+  narrative weight higher just approaches the narrative-only baseline.
+- WTI's max DD of −35.5% is uncomfortable — a real risk-management
+  layer would sit above this signal, not be a feature of it.
+- Term structure factor not yet in the backtest pipeline; it will
+  go in once a roll-aware historical fetcher is built.
+
+**Locked at this commit. Next data (2026-05-15+) is out-of-sample.**
+
+---
+
+### Template — copy below for the next change
+
+```
+### vN — YYYY-MM-DD — short title
+
+**Motivation:** what metric / observation triggered this change.
+Cite the file/script/backtest run.
+
+**Change:** what specifically changed (config diff, weight diff,
+new factor, etc.).
+
+**Hypothesis:** why we expect this to help. Be specific.
+
+**Acceptance criterion:** what numeric result one month from now
+would tell us this worked. Specify per-symbol / per-regime if relevant.
+
+**Result (filled in 1+ month later):** did the criterion hold? If no,
+revert and note what we learned. If yes, lock and move on.
+```
