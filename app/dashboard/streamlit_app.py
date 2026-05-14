@@ -353,9 +353,9 @@ c5.metric("Average Event Confidence", avg_conf)
 
 st.info(f"Main Sources: {main_sources}")
 
-tab_recs, tab_upload, tab_library, tab1, tab_trends, tab2, tab3, tab_multi, tab_method = st.tabs(
+tab_recs, tab_upload, tab_library, tab1, tab_trends, tab2, tab3, tab_multi, tab_composite_bt, tab_method = st.tabs(
     ["Signal", "Upload", "Library", "Overview", "Trends", "Research",
-     "Baseline Backtest", "Baseline Multi-book", "Methodology"]
+     "Baseline Backtest", "Baseline Multi-book", "Composite Backtest", "Methodology"]
 )
 
 def _book_history_score(book_cfg, theme_scores_df, score_date_str):
@@ -1981,6 +1981,121 @@ with tab_multi:
                     st.write("No trades.")
                     continue
                 st.dataframe(pd.DataFrame(trades), width="stretch", hide_index=True)
+
+with tab_composite_bt:
+    st.subheader("Composite Backtest — regime-conditional multi-factor signal")
+    st.caption(
+        "Same PnL machinery as the Baseline Backtest (close-to-close return × position, "
+        "5bps transaction cost), but the signal is `composite_score()` — narrative + "
+        "positioning + inventory blended by regime-conditional weights, instead of the "
+        "raw narrative-weighted theme score. Per-symbol output read from "
+        "`data/processed/backtests/composite_pnl_<sym>.json`. "
+        "Re-run with `python scripts/run_composite_backtest.py`."
+    )
+
+    cb_dir = BASE_DIR / "data" / "processed" / "backtests"
+
+    for cb_sym in ["WTI", "Brent"]:
+        cb_path = cb_dir / f"composite_pnl_{cb_sym}.json"
+        st.markdown(f"### {cb_sym}")
+        if not cb_path.exists():
+            st.info(f"No composite backtest for {cb_sym}. Run "
+                    f"`python scripts/run_composite_backtest.py` to generate it.")
+            continue
+        cb_data = json.loads(cb_path.read_text())
+        cb_summary = cb_data.get("summary", {})
+        cb_regimes = cb_data.get("by_regime", {})
+
+        cb1, cb2, cb3, cb4 = st.columns(4)
+        cb1.metric("Final Equity",
+                   f"${cb_summary.get('final_equity', 0):,.0f}",
+                   delta=f"{cb_summary.get('total_return', 0):+.1%} total return")
+        sh = cb_summary.get("annualized_sharpe")
+        cb2.metric("Annualized Sharpe", f"{sh:.2f}" if sh is not None else "n/a")
+        dd = cb_summary.get("max_drawdown")
+        cb3.metric("Max Drawdown", f"{dd:+.1%}" if dd is not None else "n/a")
+        cb4.metric("Trades / Days",
+                   f"{cb_summary.get('num_trades', 0)} / {cb_summary.get('num_days', 0)}")
+
+        cb_eq = cb_data.get("equity_curve", [])
+        if cb_eq:
+            cb_eq_df = pd.DataFrame(cb_eq)
+            cb_eq_df["date"] = pd.to_datetime(cb_eq_df["date"])
+            cb_eq_df = cb_eq_df.sort_values("date")
+            st.line_chart(cb_eq_df.set_index("date")[["equity"]])
+
+        if cb_regimes:
+            st.markdown("**Per-regime contribution** (active days = days with non-flat position):")
+            rows = []
+            for regime, agg in sorted(cb_regimes.items(), key=lambda kv: -(kv[1].get("pnl_sum") or 0)):
+                rows.append({
+                    "regime": regime,
+                    "trades": agg.get("n_trades"),
+                    "active days": agg.get("non_flat_days"),
+                    "pnl total ($)": agg.get("pnl_sum"),
+                    "pnl per active day ($)": agg.get("pnl_per_day"),
+                    "active-day hit rate": agg.get("day_hit_rate"),
+                })
+            st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
+
+        cb_trades = cb_data.get("trades", [])
+        if cb_trades:
+            n_show = st.slider(
+                f"Show last N trades ({cb_sym})",
+                min_value=5, max_value=min(50, len(cb_trades)), value=min(15, len(cb_trades)),
+                key=f"cb_trade_n_{cb_sym}",
+            )
+            st.markdown("**Trade-by-trade explanation** — newest first. Each row expands to show the factor "
+                        "breakdown that drove the position and the realized PnL until the next trade flipped it.")
+            for tr in reversed(cb_trades[-n_show:]):
+                pos = tr.get("target_position", 0.0)
+                direction = "LONG" if pos > 0 else ("SHORT" if pos < 0 else "FLAT")
+                color = {"LONG": "🟢", "SHORT": "🔴", "FLAT": "⚪"}[direction]
+                realized = tr.get("realized_pnl_pct")
+                holding = tr.get("holding_days")
+                # Headline includes outcome up-front
+                if realized is not None:
+                    outcome_str = f"{realized:+.2%}" + (f" over {holding}d" if holding else "")
+                    outcome_emoji = "✅" if realized > 0 else ("❌" if realized < 0 else "·")
+                else:
+                    outcome_str = "open"
+                    outcome_emoji = "·"
+                comp = tr.get("composite")
+                regime = tr.get("regime", "?")
+                header = (f"{color} **{tr['date']}** · `{regime}` · {direction} {abs(pos):.0f}x "
+                          f"· composite={comp:+.2f}" if comp is not None else
+                          f"{color} **{tr['date']}** · `{regime}` · {direction} {abs(pos):.0f}x")
+                header += f" · {outcome_emoji} **{outcome_str}**"
+
+                with st.expander(header):
+                    cA, cB, cC = st.columns(3)
+                    cA.metric("Entry close", f"{tr.get('entry_close', 0):,.2f}")
+                    cB.metric("Exit close", f"{tr.get('exit_close', 0):,.2f}" if tr.get("exit_close") else "open")
+                    cC.metric("Holding", f"{holding}d" if holding else "—")
+
+                    bd = tr.get("breakdown") or []
+                    if bd:
+                        st.markdown("**Composite breakdown** — what drove this trade:")
+                        st.dataframe(pd.DataFrame([
+                            {
+                                "factor": r["factor"],
+                                "value (z)": round(r["value"], 3),
+                                "weight (renorm)": round(r["weight"], 3),
+                                "contribution": round(r["contribution"], 3),
+                            }
+                            for r in bd
+                        ]), width="stretch", hide_index=True)
+                    else:
+                        st.caption("No factor breakdown stored for this trade.")
+
+                    if tr.get("transaction_cost") is not None:
+                        st.caption(
+                            f"prev_position {tr.get('prev_position', 0):+.1f} → target {pos:+.1f}  ·  "
+                            f"turnover {tr.get('turnover', 0):.2f}  ·  "
+                            f"transaction cost ${tr.get('transaction_cost', 0):.2f}"
+                        )
+
+        st.divider()
 
 with tab_method:
     method_path = BASE_DIR / "docs" / "methodology.md"
