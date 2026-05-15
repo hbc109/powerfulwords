@@ -2108,6 +2108,58 @@ with tab_paper:
         "of the system since v1 lock on 2026-05-14."
     )
 
+    with st.expander("📖 Trading rules & execution semantics", expanded=False):
+        st.markdown(
+            """
+**Signal → position** (`score_to_target_position`):
+
+| Composite | Position |
+|---|---|
+| `> +0.40` | **+2x LONG** (strong) |
+| `> +0.10` | **+1x LONG** |
+| `−0.10 ≤ x ≤ +0.10` | **FLAT** (no position, no trade) |
+| `< −0.10` | **−1x SHORT** |
+| `< −0.40` | **−2x SHORT** (strong) |
+
+`max_abs_position = 2.0`. The dead-band ±0.10 is the *"odds aren't good
+enough to act"* zone — recorded as `direction=FLAT` in the ledger so
+you see the model considered the day and chose not to trade.
+
+**Execution price** — close-to-close:
+- `entry_close` = the most recent `market_prices.close` ≤ `plan_date`
+- `exit_close`  = the next snapshot's `entry_close` when direction flips
+- `realized_pnl_pct = (exit_close / entry_close − 1) × target_position`
+
+No bid/ask, no slippage, no partial fills — close prints assumed
+executable. For real-world comparison, subtract roughly 5–10bps per
+turnover (the Composite Backtest applies 5bps; this paper ledger does
+**not** deduct cost yet — realized PnL here is gross of fees).
+
+**Auto-resolution.** When tonight's snapshot direction differs from
+the open position's direction, the previous trade closes at tonight's
+entry close. Same direction (e.g., LONG → LONG, possibly different
+size) does **not** close the position — sizing changes accumulate as
+turnover but stay in the same trade record.
+
+**Cron schedule.** Snapshot runs nightly at **07:00 local (UTC+8)** —
+that's after NYMEX WTI's 17:00 ET = 05:00 UTC+8 settlement print, with
+a margin for the 06:05 hourly `fetch_prices` to publish the official
+daily close. Earlier than 06:00 UTC+8 risks using yesterday's pre-
+settlement quote and getting the wrong entry price.
+
+**De-dup.** `(symbol, plan_date)` is unique — re-running the snapshot
+script for the same day is a no-op (won't double-record).
+
+**What this is and isn't.**
+- ✅ A truthful, ongoing scorecard of the model's signal vs. realized
+  market moves, marked-to-market each time direction flips.
+- ✅ A way to detect model drift (cumulative hit-rate divergence from
+  backtest expectations).
+- ❌ Real PnL — no fees, no slippage, no risk management overlay.
+- ❌ A tradeable system without a sizing/risk layer above this signal.
+"""
+        )
+
     from app.scoring.paper_trading import load_trades, ensure_table
     ensure_table()  # make sure the table exists even before first snapshot
 
