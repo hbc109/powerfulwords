@@ -353,9 +353,9 @@ c5.metric("Average Event Confidence", avg_conf)
 
 st.info(f"Main Sources: {main_sources}")
 
-tab_recs, tab_upload, tab_library, tab1, tab_trends, tab2, tab3, tab_multi, tab_composite_bt, tab_method = st.tabs(
+tab_recs, tab_upload, tab_library, tab1, tab_trends, tab2, tab3, tab_multi, tab_composite_bt, tab_paper, tab_method = st.tabs(
     ["Signal", "Upload", "Library", "Overview", "Trends", "Research",
-     "Baseline Backtest", "Baseline Multi-book", "Composite Backtest", "Methodology"]
+     "Baseline Backtest", "Baseline Multi-book", "Composite Backtest", "Paper Trading", "Methodology"]
 )
 
 def _book_history_score(book_cfg, theme_scores_df, score_date_str):
@@ -2096,6 +2096,104 @@ with tab_composite_bt:
                         )
 
         st.divider()
+
+with tab_paper:
+    st.subheader("Paper Trading — daily auto-snapshot of the composite signal")
+    st.caption(
+        "Each night, `scripts/snapshot_paper_trades.py` records the composite signal "
+        "for WTI and Brent into the `paper_trades` table, with an auto-generated "
+        "reasoning line from the factor breakdown. When the next snapshot flips "
+        "direction, the previous position auto-resolves and the realized PnL is "
+        "computed from close-to-close. This is a true forward-test (out-of-sample) "
+        "of the system since v1 lock on 2026-05-14."
+    )
+
+    from app.scoring.paper_trading import load_trades, ensure_table
+    ensure_table()  # make sure the table exists even before first snapshot
+
+    pt_all = load_trades(limit=400)
+    if not pt_all:
+        st.info("No paper trades yet. Run `python scripts/snapshot_paper_trades.py` (or wait for tonight's 03:30 cron).")
+    else:
+        for pt_sym in ["WTI", "Brent"]:
+            sub = [t for t in pt_all if t["symbol"] == pt_sym]
+            st.markdown(f"### {pt_sym}")
+            if not sub:
+                st.caption(f"No trades recorded for {pt_sym} yet.")
+                continue
+
+            open_pos = next((t for t in sub if t["exit_date"] is None), None)
+            closed = [t for t in sub if t["exit_date"] is not None]
+
+            cP1, cP2, cP3, cP4 = st.columns(4)
+            cP1.metric("Open position",
+                       f"{open_pos['direction']} {abs(open_pos['target_position']):.0f}x" if open_pos else "—",
+                       delta=f"since {open_pos['plan_date']}" if open_pos else None)
+            n_closed = len(closed)
+            wins = sum(1 for t in closed if (t.get("realized_pnl_pct") or 0) > 0)
+            losses = sum(1 for t in closed if (t.get("realized_pnl_pct") or 0) < 0)
+            hr = (wins / (wins + losses)) if (wins + losses) else None
+            cP2.metric("Closed trades", n_closed)
+            cP3.metric("Hit rate", f"{hr:.1%}" if hr is not None else "n/a")
+            # Cumulative paper PnL (sum of realized_pnl_pct, no compounding for now)
+            cum = sum((t.get("realized_pnl_pct") or 0) for t in closed)
+            cP4.metric("Cumulative realized %", f"{cum:+.2%}")
+
+            if open_pos:
+                with st.expander(f"📌 Open position — {open_pos['direction']} {abs(open_pos['target_position']):.0f}x since {open_pos['plan_date']}", expanded=True):
+                    st.write(f"**Reasoning**: {open_pos.get('reasoning', '—')}")
+                    st.caption(
+                        f"Composite {open_pos.get('composite_score'):+.3f} · regime `{open_pos.get('regime')}` · "
+                        f"entry close {open_pos.get('entry_close'):,.2f}" if open_pos.get('composite_score') is not None
+                        else f"regime `{open_pos.get('regime')}`"
+                    )
+                    if open_pos.get("notes"):
+                        st.write(f"📝 Notes: {open_pos['notes']}")
+                    bd = open_pos.get("breakdown") or []
+                    if bd:
+                        st.dataframe(pd.DataFrame([
+                            {"factor": r["factor"], "value (z)": round(r["value"], 3),
+                             "weight": round(r["weight"], 3), "contribution": round(r["contribution"], 3)}
+                            for r in bd
+                        ]), width="stretch", hide_index=True)
+
+            if closed:
+                st.markdown("**Closed trades** — newest first.")
+                show_n = min(20, len(closed))
+                for tr in closed[:show_n]:
+                    pos = tr.get("target_position", 0.0)
+                    realized = tr.get("realized_pnl_pct")
+                    holding = tr.get("holding_days")
+                    color = {"LONG": "🟢", "SHORT": "🔴", "FLAT": "⚪"}.get(tr.get("direction"), "·")
+                    if realized is not None:
+                        outcome = f"{realized:+.2%}" + (f" · {holding}d" if holding else "")
+                        emoji = "✅" if realized > 0 else ("❌" if realized < 0 else "·")
+                    else:
+                        outcome = "—"
+                        emoji = "·"
+                    head = (f"{color} {tr['plan_date']} · `{tr.get('regime', '?')}` · "
+                            f"{tr.get('direction')} {abs(pos):.0f}x · "
+                            f"composite {tr.get('composite_score'):+.2f} · {emoji} **{outcome}**"
+                            if tr.get('composite_score') is not None
+                            else f"{color} {tr['plan_date']} · {tr.get('direction')} {abs(pos):.0f}x · {emoji} {outcome}")
+                    with st.expander(head):
+                        st.write(f"**Reasoning**: {tr.get('reasoning', '—')}")
+                        if tr.get("notes"):
+                            st.write(f"📝 Notes: {tr['notes']}")
+                        cT1, cT2, cT3 = st.columns(3)
+                        if tr.get("entry_close"): cT1.metric("Entry close", f"{tr['entry_close']:,.2f}")
+                        if tr.get("exit_close"): cT2.metric("Exit close", f"{tr['exit_close']:,.2f}")
+                        cT3.metric("Holding", f"{holding}d" if holding else "—")
+                        bd = tr.get("breakdown") or []
+                        if bd:
+                            st.dataframe(pd.DataFrame([
+                                {"factor": r["factor"], "value (z)": round(r["value"], 3),
+                                 "weight": round(r["weight"], 3), "contribution": round(r["contribution"], 3)}
+                                for r in bd
+                            ]), width="stretch", hide_index=True)
+                if len(closed) > show_n:
+                    st.caption(f"... showing {show_n} of {len(closed)} closed trades.")
+            st.divider()
 
 with tab_method:
     method_path = BASE_DIR / "docs" / "methodology.md"

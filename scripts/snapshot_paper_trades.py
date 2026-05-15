@@ -1,0 +1,179 @@
+"""Daily snapshot of the composite signal as paper trades.
+
+For each tracked symbol, computes today's composite, classifies into
+LONG/SHORT/FLAT (using the same thresholds as the composite backtest),
+auto-generates a one-line reasoning string from the factor breakdown,
+and writes a paper_trades row. Auto-resolves any previously open
+position whose direction differs.
+
+Run manually:
+    python scripts/snapshot_paper_trades.py
+    python scripts/snapshot_paper_trades.py --date 2026-05-14   # backdated
+
+Run via cron — see ops/crontab (nightly at 03:30, after the composite
+backtest finishes at 03:15).
+"""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from datetime import date
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parents[1]
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
+
+import json
+
+import pandas as pd
+
+from app.db.database import get_connection
+from app.scoring.composite import composite_score
+from app.scoring.factors import positioning_factor, inventory_factor, term_structure_factor
+from app.scoring.paper_trading import record_snapshot
+from app.strategy.backtest_engine import score_to_target_position, aggregate_score_by_date
+
+
+COMPOSITE_CFG = {
+    "entry_threshold_long":         0.10,
+    "entry_threshold_short":       -0.10,
+    "strong_entry_threshold_long":  0.40,
+    "strong_entry_threshold_short": -0.40,
+    "base_position":     1.0,
+    "strong_position":   2.0,
+    "max_abs_position":  2.0,
+}
+
+SYMBOLS = [("WTI", "wti_outright"), ("Brent", "brent_outright")]
+
+
+def _load_book_cfg(name: str) -> dict:
+    cfg_path = BASE_DIR / "app" / "config" / "multi_strategy_config.json"
+    cfg = json.loads(cfg_path.read_text())
+    for b in cfg.get("books", []):
+        if b.get("name") == name:
+            return b
+    raise KeyError(f"Book {name!r} not in multi_strategy_config")
+
+
+def _narrative_z_for_date(book_cfg: dict, theme_scores: pd.DataFrame, asof: date, window: int = 30):
+    weights = (book_cfg.get("scoring") or {}).get("theme_weights")
+    rows = [
+        {"score_date": str(r["score_date"]), "theme": r["theme"],
+         "narrative_score": float(r["narrative_score"])}
+        for _, r in theme_scores.iterrows()
+    ]
+    agg = aggregate_score_by_date(rows, weights=weights, group_field="theme")
+    if not agg:
+        return None
+    df = pd.DataFrame(agg).sort_values("score_date").reset_index(drop=True)
+    df["score_date"] = df["score_date"].astype(str)
+    df["aggregate_score"] = df["aggregate_score"].astype(float)
+    asof_iso = asof.isoformat()
+    if asof_iso not in df["score_date"].values:
+        # Use the last date on or before asof
+        before = df[df["score_date"] <= asof_iso]
+        if before.empty:
+            return None
+        df = before
+    history = df[df["score_date"] <= asof_iso].tail(window + 1)
+    if len(history) < 6:
+        return None
+    today_val = float(history.iloc[-1]["aggregate_score"])
+    prior = history.iloc[:-1]["aggregate_score"]
+    mean, std = prior.mean(), prior.std()
+    if std == 0 or pd.isna(std):
+        return None
+    return (today_val - mean) / std
+
+
+def _latest_close_on_or_before(symbol: str, asof: date, conn) -> float | None:
+    row = conn.execute(
+        "SELECT close FROM market_prices WHERE symbol=? AND price_time <= ? ORDER BY price_time DESC LIMIT 1",
+        (symbol, asof.isoformat()),
+    ).fetchone()
+    return float(row[0]) if row and row[0] else None
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--date", default=None,
+                    help="Plan date (YYYY-MM-DD). Defaults to today.")
+    args = ap.parse_args()
+    plan_date = date.fromisoformat(args.date) if args.date else date.today()
+
+    conn = get_connection()
+    theme_scores = pd.read_sql(
+        "SELECT score_date, theme, narrative_score FROM daily_theme_scores WHERE commodity='crude_oil'",
+        conn,
+    )
+    print(f"Snapshotting paper trades for {plan_date}.")
+
+    for sym, book_name in SYMBOLS:
+        regime_row = conn.execute(
+            "SELECT primary_regime FROM daily_regimes WHERE symbol=? AND regime_date <= ? "
+            "ORDER BY regime_date DESC LIMIT 1",
+            (sym, plan_date.isoformat()),
+        ).fetchone()
+        regime = regime_row[0] if regime_row else None
+
+        book_cfg = _load_book_cfg(book_name)
+        narr_z = _narrative_z_for_date(book_cfg, theme_scores, plan_date)
+        try:
+            ts = term_structure_factor(sym, plan_date)
+        except Exception:
+            ts = None
+        try:
+            pos = positioning_factor(sym, plan_date)
+        except Exception:
+            pos = None
+        try:
+            inv = inventory_factor(sym, plan_date)
+        except Exception:
+            inv = None
+
+        composite = None
+        breakdown = []
+        if regime and narr_z is not None:
+            try:
+                out = composite_score(
+                    sym, regime, narr_z,
+                    {"term_structure": ts, "positioning": pos, "inventory": inv},
+                )
+                composite = float(out["total"])
+                breakdown = out.get("breakdown", [])
+            except KeyError:
+                composite = None
+
+        target_position = score_to_target_position(composite, COMPOSITE_CFG) if composite is not None else 0.0
+        direction = "LONG" if target_position > 0 else ("SHORT" if target_position < 0 else "FLAT")
+        entry_close = _latest_close_on_or_before(sym, plan_date, conn)
+
+        result = record_snapshot(
+            plan_date=plan_date,
+            symbol=sym,
+            direction=direction,
+            target_position=target_position,
+            composite_score=composite,
+            regime=regime,
+            narrative_z=narr_z,
+            term_structure=ts,
+            positioning=pos,
+            inventory=inv,
+            breakdown=breakdown,
+            entry_close=entry_close,
+            conn=conn,
+        )
+        msg = "DUPLICATE skipped" if result.get("skipped_dup") else f"id={result['trade_id']}"
+        if result.get("resolved"):
+            msg += f"  resolved prev id={result['resolved']}"
+        print(f"  {sym}: {direction} {abs(target_position):.0f}x  composite={composite}  ({msg})")
+        print(f"    {result['reasoning']}")
+
+    conn.close()
+
+
+if __name__ == "__main__":
+    main()
