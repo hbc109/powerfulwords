@@ -455,6 +455,114 @@ immediately which one is winning the blend in this regime.
 
 ---
 
+## 8B. Trading rules & execution semantics
+
+How the composite signal translates into a position, and how
+positions are recorded / resolved in the paper-trading ledger and the
+composite backtest. Both consume the same rules so results are
+directly comparable.
+
+### 8B.1 Signal → position
+
+`score_to_target_position` (in `app/strategy/backtest_engine.py`)
+applied with composite-scale thresholds:
+
+| Composite | Position |
+|---|---|
+| `> +0.40` | **+2x LONG** (strong) |
+| `> +0.10` | **+1x LONG** |
+| `−0.10 ≤ x ≤ +0.10` | **FLAT** (no position, no trade) |
+| `< −0.10` | **−1x SHORT** |
+| `< −0.40` | **−2x SHORT** (strong) |
+
+`max_abs_position = 2.0`. The dead-band ±0.10 is the *"odds aren't
+good enough to act"* zone. FLAT days are still recorded in the paper
+ledger with `direction=FLAT, target_position=0` so we can see that
+the model considered the day and chose not to trade.
+
+### 8B.2 Execution price — close-to-close
+
+Both the composite backtest and the paper-trading snapshot use:
+
+```
+entry_close      = latest market_prices.close on or before plan_date
+exit_close       = entry_close of the next trade that flips direction
+realized_pnl_pct = (exit_close / entry_close − 1) × target_position
+```
+
+No bid/ask, no slippage, no partial fills — close prints assumed
+executable. For real-world comparison, subtract roughly 5–10bps per
+turnover.
+
+### 8B.3 Cost convention
+
+- **Composite backtest**: applies `one_way_cost_bps = 5.0` on every
+  unit of turnover (equity × |Δ position| × cost_rate). Realized PnL
+  in `equity_curve` is net of cost.
+- **Paper trading ledger**: does **not** deduct cost yet. `realized_pnl_pct`
+  in the `paper_trades` table is gross of fees. Subtract ~5–10bps per
+  turnover for like-for-like comparison with the backtest.
+
+### 8B.4 Auto-resolution (paper trading)
+
+When the next snapshot's direction differs from the open position's
+direction, the previous trade closes at the new entry close:
+
+```
+on snapshot for symbol S on date D:
+  if open_position(S).direction != new_direction:
+    UPDATE paper_trades
+       SET exit_date = D,
+           exit_close = today_close(S),
+           realized_pnl_pct = (today_close / open.entry_close − 1) × open.target_position,
+           holding_days = D − open.plan_date
+     WHERE trade_id = open.trade_id
+  INSERT new row with the new direction
+```
+
+Same direction (e.g., LONG → LONG, possibly different size) does
+**not** close the position — sizing changes accumulate as turnover
+but stay in the same trade record.
+
+### 8B.5 Cron schedule
+
+- **Hourly at `:05`** — full pipeline (`init_sources → fetch_sources →
+  fetch_prices → compute_regimes → ingest → extract → score →
+  hypotheses`). Refreshes prices, COT, EIA inventory, narrative
+  scores, regime tags.
+- **Composite backtest at `03:15`** — recomputes the historical
+  backtest each night (`run_composite_backtest.py`) so the dashboard
+  serves a current backtest by morning.
+- **Paper trading snapshot at `07:00`** — runs `snapshot_paper_trades.py`
+  AFTER NYMEX WTI's `17:00 ET = 05:00 UTC+8` settlement, with margin
+  for the `06:05` hourly `fetch_prices` to publish the official close.
+  Earlier than `06:00 UTC+8` risks recording entries off the wrong close.
+- **Sunday at `02:30`** — weekly event-study rerun.
+
+`(symbol, plan_date)` is unique in `paper_trades` — re-running the
+snapshot for the same day is a no-op. See `ops/crontab` for the
+reproducible install.
+
+### 8B.6 What this is and isn't
+
+✅ **Is**:
+- A truthful, ongoing scorecard of the model's signal vs. realized
+  market moves, marked-to-market each time direction flips.
+- A drift detector — cumulative paper-PnL hit-rate diverging from
+  backtest expectations is an early warning that something has
+  changed (regime characteristics, factor reliability, data source).
+- Direct apples-to-apples comparison with the historical composite
+  backtest because both use the same close-to-close PnL machinery.
+
+❌ **Is not**:
+- Real PnL. No fees, no slippage, no MOC fill quality, no overnight
+  funding cost, no margin/financing model.
+- A complete trading system. Production trading needs a sizing /
+  vol-targeting / drawdown-limit layer above this signal — see
+  the "what's still missing" section in `docs/strategy_versions.md`.
+
+---
+
 ## 9. Glossary
 
 - **Bucket** — Source category with a credibility weight. See section 3.
