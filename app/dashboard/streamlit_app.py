@@ -1,4 +1,5 @@
 import json
+import os
 import sqlite3
 import subprocess
 import sys
@@ -353,9 +354,9 @@ c5.metric("Average Event Confidence", avg_conf)
 
 st.info(f"Main Sources: {main_sources}")
 
-tab_recs, tab_upload, tab_library, tab1, tab_trends, tab2, tab3, tab_multi, tab_composite_bt, tab_paper, tab_method = st.tabs(
+tab_recs, tab_upload, tab_library, tab1, tab_trends, tab2, tab3, tab_multi, tab_composite_bt, tab_paper, tab_ai, tab_method = st.tabs(
     ["Signal", "Upload", "Library", "Overview", "Trends", "Research",
-     "Baseline Backtest", "Baseline Multi-book", "Composite Backtest", "Paper Trading", "Methodology"]
+     "Baseline Backtest", "Baseline Multi-book", "Composite Backtest", "Paper Trading", "AI Judgment", "Methodology"]
 )
 
 def _book_history_score(book_cfg, theme_scores_df, score_date_str):
@@ -2246,6 +2247,67 @@ script for the same day is a no-op (won't double-record).
                 if len(closed) > show_n:
                     st.caption(f"... showing {show_n} of {len(closed)} closed trades.")
             st.divider()
+
+with tab_ai:
+    st.subheader("AI Judgment — parallel advisory overlay (does NOT touch trades)")
+    st.caption(
+        "Each evening, `scripts/generate_ai_review.py` calls Claude with "
+        "today's composite signal, factor breakdown, regime, recent narrative "
+        "themes, recent document titles, and last 8 closed paper trades. "
+        "Claude writes a short prose review: signal coherence, factor "
+        "disagreements, cross-symbol observations, tail-risk flags. "
+        "**The trade-decision logic stays 100% rule-based; this layer is "
+        "advisory only.** Stored in the `ai_reviews` table."
+    )
+
+    from app.scoring.ai_reviewer import load_reviews
+    ai_reviews = load_reviews(limit=60)
+
+    if not os.environ.get("ANTHROPIC_API_KEY") and not ai_reviews:
+        st.info(
+            "**ANTHROPIC_API_KEY not set on the dashboard process.** Set it "
+            "in `~/.bashrc` and add it to the cron environment "
+            "(see `ops/crontab`), then run `python scripts/generate_ai_review.py` "
+            "to produce the first review. Get a key at https://console.anthropic.com/."
+        )
+    elif not ai_reviews:
+        st.info("No AI reviews yet. Run `python scripts/generate_ai_review.py` "
+                "(or wait for tonight's 07:15 cron).")
+    else:
+        st.markdown(f"### Latest review — {ai_reviews[0]['review_date']}")
+        latest = ai_reviews[0]
+        st.markdown(latest["review_text"])
+        st.caption(f"model: `{latest['model']}` · generated {latest['created_at']}")
+
+        ctx = latest.get("context") or {}
+        if ctx.get("signals_today"):
+            with st.expander("Show context fed to Claude (what it 'saw')"):
+                st.markdown("**Signals today:**")
+                for s in ctx["signals_today"]:
+                    comp = s.get("composite")
+                    comp_str = f"{comp:+.3f}" if isinstance(comp, (int, float)) else "n/a"
+                    st.write(f"- {s['symbol']}: {s.get('direction', '?')} "
+                             f"{abs(s.get('target_position') or 0):.0f}x "
+                             f"· regime `{s.get('regime', '?')}` · composite {comp_str}")
+                if ctx.get("recent_themes_7d"):
+                    st.markdown("**Top recent themes (7d):**")
+                    for t in ctx["recent_themes_7d"][:5]:
+                        st.write(f"- {t['theme']}: total {t['total_score']:+.2f} "
+                                 f"({t['n_days_present']}d)")
+                if ctx.get("recent_closed_trades"):
+                    st.markdown("**Recent closed paper trades:**")
+                    for c in ctx["recent_closed_trades"][:5]:
+                        pnl = c.get("realized_pnl_pct")
+                        pnl_str = f"{pnl:+.2%}" if isinstance(pnl, (int, float)) else "n/a"
+                        st.write(f"- {c['plan_date']} → {c['exit_date']}  "
+                                 f"{c['symbol']} {c['direction']} · realized {pnl_str}")
+
+        if len(ai_reviews) > 1:
+            st.divider()
+            st.markdown(f"### Earlier reviews ({len(ai_reviews) - 1})")
+            for r in ai_reviews[1:]:
+                with st.expander(f"{r['review_date']} — `{r['model']}`"):
+                    st.markdown(r["review_text"])
 
 with tab_method:
     method_path = BASE_DIR / "docs" / "methodology.md"

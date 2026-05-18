@@ -21,3 +21,7 @@ EIA_API_KEY=__SET_ME__
 # Paper trading snapshot — nightly at 07:00 (after WTI 17:00 ET = 05:00 UTC+8 settlement,
 # plus margin for the 06:05 hourly fetch_prices to publish the official daily close)
 0 7 * * * /usr/bin/python3 /home/hongbingchen/powerfulwords/scripts/snapshot_paper_trades.py >> /tmp/oil_pipeline.log 2>&1
+
+# AI judgment review — nightly at 07:15 (after the paper snapshot at 07:00).
+# Requires ANTHROPIC_API_KEY in the crontab env to do anything (otherwise skips cleanly).
+15 7 * * * /usr/bin/python3 /home/hongbingchen/powerfulwords/scripts/generate_ai_review.py >> /tmp/oil_pipeline.log 2>&1
