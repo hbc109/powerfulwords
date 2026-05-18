@@ -2260,8 +2260,84 @@ with tab_ai:
         "advisory only.** Stored in the `ai_reviews` table."
     )
 
-    from app.scoring.ai_reviewer import load_reviews
+    from app.scoring.ai_reviewer import load_reviews, prepare_prompt, save_review
     ai_reviews = load_reviews(limit=60)
+
+    # --- Manual paste-flow for users on a claude.ai subscription (no API key) ---
+    with st.expander("✍️ Generate review manually via claude.ai (no API key needed)", expanded=False):
+        st.caption(
+            "Your claude.ai subscription doesn't expose an API. Use this paste-flow "
+            "instead: copy the prompt → paste into claude.ai → paste Claude's "
+            "response back here → save. The saved review lives in the same table "
+            "as auto-generated ones and shows up below."
+        )
+
+        with st.expander("📖 How to use this — step by step", expanded=False):
+            st.markdown("""
+**Setup (one time)**: nothing. Just be logged in to [claude.ai](https://claude.ai) in another browser tab.
+
+**Each day** (takes about 60 seconds):
+
+1. **Pick the date** in the box below (defaults to today). For yesterday's review pick yesterday, etc.
+2. **Click `📋 Build prompt for this date`** — the dashboard assembles the context (today's signal, factor breakdown, recent themes, recent titles, recent paper trades) into two text blocks: a **system prompt** and a **user prompt**.
+3. **Open a new chat at claude.ai** (Sonnet 4.6 recommended for the right cost/quality balance, but Opus 4.7 works too).
+4. **Paste the system prompt first**, on its own line, then a blank line, then **paste the user prompt** under it. Submit. *(claude.ai web UI doesn't have a separate system field, so prepending it works fine.)*
+5. **Wait for Claude's reply** — a single paragraph, 150-200 words.
+6. **Copy Claude's full reply** and **paste it into the box** at the bottom of this section.
+7. **Click `💾 Save as today's review`** — written to `ai_reviews` table, dashboard reruns, the new review appears below as the "Latest review" with `model: claude.ai-manual` to distinguish from API-generated ones.
+
+**Tips:**
+- If Claude refuses or gives a wildly off-shape reply, just regenerate in claude.ai and paste the better version. Save overwrites the existing review for that date (unique on `(review_date)`).
+- The system prompt is the same every day; the user prompt is what changes. If you do this enough that pasting the system prompt feels redundant, just paste the user prompt — Claude will infer most of the right behavior, just with slightly less consistent output style.
+- You can backfill: pick an older date, build the prompt, generate, save. As long as a paper-trade snapshot exists for that date, this works.
+""")
+
+        mc1, mc2 = st.columns([1, 3])
+        with mc1:
+            paste_review_date = st.date_input(
+                "Review date",
+                value=date.today(),
+                min_value=date(2024, 1, 1),
+                max_value=date.today(),
+                key="paste_review_date",
+            )
+        with mc2:
+            if st.button("📋 Build prompt for this date", key="build_prompt_btn"):
+                st.session_state["_paste_prompt_payload"] = prepare_prompt(paste_review_date)
+
+        payload = st.session_state.get("_paste_prompt_payload")
+        if payload and not payload.get("ready"):
+            st.warning(payload.get("reason") or "No data for this date.")
+        elif payload:
+            st.markdown("**System prompt** (copy first into claude.ai's *Style*/system-prompt field if available, "
+                        "or just paste it as a prefix):")
+            st.code(payload["system"], language="text")
+            st.markdown("**User prompt** (paste as your message to claude.ai):")
+            st.code(payload["user"], language="text")
+            st.caption(
+                "Claude.ai will write a 150-200 word review. Paste it back in the box "
+                "below and save."
+            )
+
+            pasted = st.text_area(
+                "Paste Claude's response here",
+                height=200,
+                key="paste_review_response_input",
+                placeholder="Paste Claude.ai's review text...",
+            )
+            save_disabled = not pasted.strip()
+            if st.button("💾 Save as today's review", type="primary",
+                         disabled=save_disabled, key="save_pasted_review_btn"):
+                rid = save_review(
+                    paste_review_date,
+                    model="claude.ai-manual",
+                    context=payload["context"],
+                    review_text=pasted.strip(),
+                )
+                st.success(f"Saved review_id={rid} for {paste_review_date}.")
+                st.session_state.pop("_paste_prompt_payload", None)
+                st.session_state["paste_review_response_input"] = ""
+                st.rerun()
 
     if not os.environ.get("ANTHROPIC_API_KEY") and not ai_reviews:
         st.info(

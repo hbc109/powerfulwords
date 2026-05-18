@@ -234,6 +234,27 @@ def generate_review(review_date: date, *, model: str = DEFAULT_MODEL) -> dict:
                 "review_text": None, "model": model, "context": ctx}
 
 
+def prepare_prompt(review_date: date) -> dict:
+    """Assemble the system + user prompt for `review_date` without calling
+    any API. Used by the dashboard's paste-flow for claude.ai subscribers
+    who don't have an API key.
+
+    Returns: {"system": str, "user": str, "context": dict, "ready": bool, "reason": Optional[str]}
+    """
+    conn = get_connection()
+    ensure_table(conn)
+    ctx = _gather_context(review_date, conn)
+    conn.close()
+    if not ctx.get("signals_today"):
+        return {"system": SYSTEM_PROMPT, "user": "", "context": ctx,
+                "ready": False,
+                "reason": f"No paper-trade snapshot exists for {review_date}. "
+                          f"Run `python scripts/snapshot_paper_trades.py --date {review_date}` first."}
+    user_prompt = _format_context_for_llm(ctx)
+    return {"system": SYSTEM_PROMPT, "user": user_prompt, "context": ctx,
+            "ready": True, "reason": None}
+
+
 def save_review(review_date: date, model: str, context: dict, review_text: str) -> int:
     conn = get_connection()
     ensure_table(conn)
