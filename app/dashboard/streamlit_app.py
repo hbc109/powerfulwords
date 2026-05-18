@@ -2473,16 +2473,12 @@ with tab_daily:
         if dr_payload and not dr_payload.get("ready"):
             st.warning(dr_payload.get("reason") or "Insufficient data for this date.")
         elif dr_payload:
-            sl = len(dr_payload.get("system") or "")
-            ul = len(dr_payload.get("user") or "")
+            combined = (dr_payload.get("system") or "") + "\n\n---\n\n" + (dr_payload.get("user") or "")
             st.caption(
-                f"📝 Prompt built — **system: {sl:,} chars · user: {ul:,} chars** "
-                f"(~{(sl + ul) // 4:,} tokens)."
+                f"📝 Prompt built — **{len(combined):,} chars** "
+                f"(~{len(combined) // 4:,} tokens). Hover the top-right of the box to copy."
             )
-            st.markdown("**System prompt:**")
-            st.code(dr_payload["system"], language="text")
-            st.markdown("**User prompt:**")
-            st.code(dr_payload["user"], language="text")
+            st.code(combined, language="text")
 
             pasted = st.text_area(
                 "Paste Claude's response here",
