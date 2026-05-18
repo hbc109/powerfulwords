@@ -2264,13 +2264,17 @@ with tab_ai:
     ai_reviews = load_reviews(limit=60)
 
     # --- Manual paste-flow for users on a claude.ai subscription (no API key) ---
-    with st.expander("✍️ Generate review manually via claude.ai (no API key needed)", expanded=False):
-        st.caption(
-            "Your claude.ai subscription doesn't expose an API. Use this paste-flow "
-            "instead: copy the prompt → paste into claude.ai → paste Claude's "
-            "response back here → save. The saved review lives in the same table "
-            "as auto-generated ones and shows up below."
-        )
+    with st.expander("✍️ Generate review manually via claude.ai (no API key needed)", expanded=True):
+        ml1, ml2 = st.columns([3, 1])
+        with ml1:
+            st.caption(
+                "Your claude.ai subscription doesn't expose an API. Use this paste-flow "
+                "instead: copy the prompt → paste into claude.ai → paste Claude's "
+                "response back here → save. The saved review lives in the same table "
+                "as auto-generated ones and shows up below."
+            )
+        with ml2:
+            st.link_button("Open claude.ai ↗", "https://claude.ai/new", use_container_width=True)
 
         with st.expander("📖 How to use this — step by step", expanded=False):
             st.markdown("""
@@ -2309,6 +2313,13 @@ with tab_ai:
         if payload and not payload.get("ready"):
             st.warning(payload.get("reason") or "No data for this date.")
         elif payload:
+            user_len = len(payload.get("user") or "")
+            sys_len = len(payload.get("system") or "")
+            st.caption(
+                f"📝 Prompt built — **system: {sys_len:,} chars · user: {user_len:,} chars** "
+                f"(~{(sys_len + user_len) // 4:,} tokens). Paste into a fresh claude.ai chat; "
+                f"Sonnet 4.6 is the recommended model."
+            )
             st.markdown("**System prompt** (copy first into claude.ai's *Style*/system-prompt field if available, "
                         "or just paste it as a prefix):")
             st.code(payload["system"], language="text")
