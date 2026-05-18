@@ -116,6 +116,12 @@ Rules for changing the strategy after v1:
 
 ---
 
+## Open questions (revisit later)
+
+- **Are WTI and Brent really the same beast?** The current architecture (one composite, per-symbol regime weights on the same factor set) assumes they respond to the same factors in different proportions. They may actually need different factor *sets* entirely — WTI lives on EIA + Cushing + CFTC, Brent lives on ICE positioning, ARA/Singapore stocks, OPEC+ compliance, freight rates. Our data stack is US-skewed; that's the root cause of Brent's persistent backtest underperformance, not a weight-tuning problem. *Note added 2026-05-18.*
+
+---
+
 ### Template — copy below for the next change
 
 ```
