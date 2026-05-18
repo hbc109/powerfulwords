@@ -2211,7 +2211,7 @@ script for the same day is a no-op (won't double-record).
                         ]), width="stretch", hide_index=True)
 
             if closed:
-                st.markdown("**Closed trades** — newest first.")
+                st.markdown("**Closed trades** — newest first. Header shows `entry → exit · direction · regime · composite · realized PnL · hold`.")
                 show_n = min(20, len(closed))
                 for tr in closed[:show_n]:
                     pos = tr.get("target_position", 0.0)
@@ -2219,23 +2219,28 @@ script for the same day is a no-op (won't double-record).
                     holding = tr.get("holding_days")
                     color = {"LONG": "🟢", "SHORT": "🔴", "FLAT": "⚪"}.get(tr.get("direction"), "·")
                     if realized is not None:
-                        outcome = f"{realized:+.2%}" + (f" · {holding}d" if holding else "")
+                        outcome = f"{realized:+.2%}"
                         emoji = "✅" if realized > 0 else ("❌" if realized < 0 else "·")
                     else:
                         outcome = "—"
                         emoji = "·"
-                    head = (f"{color} {tr['plan_date']} · `{tr.get('regime', '?')}` · "
-                            f"{tr.get('direction')} {abs(pos):.0f}x · "
-                            f"composite {tr.get('composite_score'):+.2f} · {emoji} **{outcome}**"
-                            if tr.get('composite_score') is not None
-                            else f"{color} {tr['plan_date']} · {tr.get('direction')} {abs(pos):.0f}x · {emoji} {outcome}")
+                    entry_d = tr.get("plan_date", "?")
+                    exit_d = tr.get("exit_date") or "open"
+                    hold_str = f" · {holding}d" if holding else ""
+                    comp_str = (f" · composite {tr.get('composite_score'):+.2f}"
+                                if tr.get('composite_score') is not None else "")
+                    head = (f"{color} **{entry_d} → {exit_d}** · `{tr.get('regime', '?')}` · "
+                            f"{tr.get('direction')} {abs(pos):.0f}x{comp_str} · "
+                            f"{emoji} **{outcome}**{hold_str}")
                     with st.expander(head):
                         st.write(f"**Reasoning**: {tr.get('reasoning', '—')}")
                         if tr.get("notes"):
                             st.write(f"📝 Notes: {tr['notes']}")
                         cT1, cT2, cT3 = st.columns(3)
-                        if tr.get("entry_close"): cT1.metric("Entry close", f"{tr['entry_close']:,.2f}")
-                        if tr.get("exit_close"): cT2.metric("Exit close", f"{tr['exit_close']:,.2f}")
+                        if tr.get("entry_close"):
+                            cT1.metric(f"Entry close · {entry_d}", f"{tr['entry_close']:,.2f}")
+                        if tr.get("exit_close"):
+                            cT2.metric(f"Exit close · {exit_d}", f"{tr['exit_close']:,.2f}")
                         cT3.metric("Holding", f"{holding}d" if holding else "—")
                         bd = tr.get("breakdown") or []
                         if bd:
