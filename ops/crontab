@@ -25,3 +25,6 @@ EIA_API_KEY=__SET_ME__
 # AI judgment review — nightly at 07:15 (after the paper snapshot at 07:00).
 # Requires ANTHROPIC_API_KEY in the crontab env to do anything (otherwise skips cleanly).
 15 7 * * * /usr/bin/python3 /home/hongbingchen/powerfulwords/scripts/generate_ai_review.py >> /tmp/oil_pipeline.log 2>&1
+
+# Daily news report (headlines + latest inventory, no scores) — nightly at 07:30
+30 7 * * * /usr/bin/python3 /home/hongbingchen/powerfulwords/scripts/daily_news_report.py >> /tmp/oil_pipeline.log 2>&1
