@@ -68,6 +68,12 @@ HEADLINE_BUCKETS = (
     "official_reports",
 )
 
+# Don't re-report an inventory series in the daily report if its
+# latest data point is older than this many days from the report date.
+# EIA is weekly (Wed), so 3d covers Wed/Thu/Fri after release.
+FRESH_INVENTORY_WINDOW_DAYS = 3
+
+
 # Per-source exclusion list. These sources are nominally in oil-relevant
 # buckets but carry too much off-topic noise (politics, opinion, generic
 # news) for a daily oil-news report.
@@ -116,8 +122,10 @@ def render(asof: date, conn: sqlite3.Connection) -> str:
                 parts.append(f"  > {ex}")
         parts.append("")
 
-    # Inventory
-    parts.append("## Inventory (latest available)\n")
+    # Inventory — only include rows whose latest data is FRESH (within
+    # FRESH_INVENTORY_WINDOW_DAYS of the report date) so we don't
+    # re-report last week's EIA numbers every day. If nothing is fresh,
+    # the section is omitted entirely.
     series = [
         ("EIA_CRUDE_STOCKS",     "US crude (excl SPR)"),
         ("EIA_CUSHING_STOCKS",   "Cushing crude"),
@@ -125,22 +133,29 @@ def render(asof: date, conn: sqlite3.Connection) -> str:
         ("EIA_DISTILLATE_STOCKS","US distillate"),
         ("JODI_OECD_CRUDE_STOCKS","OECD basket crude (JODI, monthly)"),
     ]
-    any_inv = False
+    inv_lines = []
     for sym, label in series:
         rows = _latest_two(conn, sym, asof)
         if not rows:
             continue
-        any_inv = True
         latest_d, latest_v = rows[0]
+        try:
+            latest_date = date.fromisoformat(latest_d[:10])
+        except ValueError:
+            continue
+        if (asof - latest_date).days > FRESH_INVENTORY_WINDOW_DAYS:
+            continue
         if len(rows) > 1 and rows[1][1] is not None:
             chg = latest_v - rows[1][1]
             chg_str = f" ({'+' if chg >= 0 else ''}{int(round(chg)):,} kbbl vs prior)"
         else:
             chg_str = ""
-        parts.append(f"- **{label}** ({latest_d[:10]}): {_fmt_kbbl(latest_v)}{chg_str}")
-    if not any_inv:
-        parts.append("_No inventory data available._")
-    parts.append("")
+        inv_lines.append(f"- **{label}** ({latest_d[:10]}): {_fmt_kbbl(latest_v)}{chg_str}")
+
+    if inv_lines:
+        parts.append("## New inventory data\n")
+        parts.extend(inv_lines)
+        parts.append("")
     return "\n".join(parts)
 
 
