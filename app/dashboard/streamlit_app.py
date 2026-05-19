@@ -629,6 +629,70 @@ whether factors agree or pull against each other.
     _render_composite("Brent", "brent_outright")
 
     st.divider()
+
+    # --- Intraday trade-ideas paste-flow ---
+    with st.expander("💡 Generate intraday trade ideas via claude.ai (on-demand)", expanded=False):
+        from datetime import datetime as _dt
+        from app.scoring.trade_ideas import (
+            prepare_trade_ideas_prompt, save_trade_ideas, list_trade_ideas,
+        )
+
+        st.caption(
+            "Builds a snapshot prompt right now — current composite for WTI/Brent, "
+            "latest factor reads, latest inventory state (with publication date), "
+            "and the top documents from the last N hours — and asks Claude for "
+            "2-3 specific trade ideas with rationale and risks. Click anytime; "
+            "the underlying data refreshes hourly with the cron pipeline."
+        )
+
+        ic1, ic2 = st.columns([1, 1])
+        with ic1:
+            recent_h = st.slider("Recent-docs window (hours)", min_value=6, max_value=72,
+                                 value=24, step=6, key="ti_recent_hours")
+        with ic2:
+            st.link_button("Open claude.ai ↗", "https://claude.ai/new", use_container_width=True)
+
+        if st.button("📋 Build trade-ideas prompt", key="build_ti_prompt_btn", type="primary"):
+            st.session_state["_ti_payload"] = prepare_trade_ideas_prompt(recent_hours=recent_h)
+            st.session_state["_ti_asof"] = _dt.now()
+
+        ti = st.session_state.get("_ti_payload")
+        ti_asof = st.session_state.get("_ti_asof")
+        if ti and not ti.get("ready"):
+            st.warning(ti.get("reason") or "Not enough data right now.")
+        elif ti and ti_asof:
+            combined = (ti.get("system") or "") + "\n\n---\n\n" + (ti.get("user") or "")
+            st.caption(
+                f"📝 Prompt built at **{ti_asof.strftime('%Y-%m-%d %H:%M')} UTC+8** — "
+                f"**{len(combined):,} chars** (~{len(combined) // 4:,} tokens). "
+                f"Hover top-right of the box to copy."
+            )
+            st.code(combined, language="text")
+
+            pasted = st.text_area(
+                "Paste Claude's response here",
+                height=240,
+                key="paste_ti_input",
+                placeholder="Paste Claude's trade-ideas note...",
+            )
+            if st.button("💾 Save trade ideas", type="primary",
+                         disabled=not pasted.strip(), key="save_ti_btn"):
+                p = save_trade_ideas(ti_asof, pasted.strip())
+                st.success(f"Saved to {p.relative_to(BASE_DIR)}")
+                st.session_state.pop("_ti_payload", None)
+                st.session_state.pop("_ti_asof", None)
+                st.session_state["paste_ti_input"] = ""
+                st.rerun()
+
+        # Show last few saved trade-ideas notes
+        prior = list_trade_ideas(limit=6)
+        if prior:
+            st.markdown("**Recent saved trade-ideas notes:**")
+            for entry in prior:
+                with st.expander(f"📌 {entry['stamp']}"):
+                    st.markdown(entry["text"])
+
+    st.divider()
     st.subheader(f"Narrative tilt for {selected_date}")
 
     st.info(
