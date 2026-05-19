@@ -2197,7 +2197,8 @@ script for the same day is a no-op (won't double-record).
                     st.write(f"**Reasoning**: {open_pos.get('reasoning', '—')}")
                     st.caption(
                         f"Composite {open_pos.get('composite_score'):+.3f} · regime `{open_pos.get('regime')}` · "
-                        f"entry close {open_pos.get('entry_close'):,.2f}" if open_pos.get('composite_score') is not None
+                        f"entry close ${open_pos.get('entry_close'):,.2f} (settle @ {open_pos['plan_date']} 14:30 ET)"
+                        if open_pos.get('composite_score') is not None
                         else f"regime `{open_pos.get('regime')}`"
                     )
                     if open_pos.get("notes"):
@@ -2238,9 +2239,9 @@ script for the same day is a no-op (won't double-record).
                             st.write(f"📝 Notes: {tr['notes']}")
                         cT1, cT2, cT3 = st.columns(3)
                         if tr.get("entry_close"):
-                            cT1.metric(f"Entry close · {entry_d}", f"{tr['entry_close']:,.2f}")
+                            cT1.metric(f"Entry close · {entry_d} 14:30 ET", f"${tr['entry_close']:,.2f}")
                         if tr.get("exit_close"):
-                            cT2.metric(f"Exit close · {exit_d}", f"{tr['exit_close']:,.2f}")
+                            cT2.metric(f"Exit close · {exit_d} 14:30 ET", f"${tr['exit_close']:,.2f}")
                         cT3.metric("Holding", f"{holding}d" if holding else "—")
                         bd = tr.get("breakdown") or []
                         if bd:
