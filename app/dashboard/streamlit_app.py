@@ -2581,12 +2581,19 @@ with tab_daily:
         st.info(f"No report for {picked_str} yet.")
 
 with tab_strategy:
-    strat_path = BASE_DIR / "docs" / "strategy_versions.md"
-    if strat_path.exists():
-        st.markdown(strat_path.read_text(encoding="utf-8"))
-    else:
-        st.warning(f"Strategy notes not found at {strat_path}")
-        st.caption("Expected file: docs/strategy_versions.md at repo root. Pull latest from main.")
+    docs_to_render = [
+        ("docs/strategy_versions.md", BASE_DIR / "docs" / "strategy_versions.md"),
+        ("docs/retail_edge_thesis.md", BASE_DIR / "docs" / "retail_edge_thesis.md"),
+    ]
+    rendered_any = False
+    for label, path in docs_to_render:
+        if path.exists():
+            if rendered_any:
+                st.divider()
+            st.markdown(path.read_text(encoding="utf-8"))
+            rendered_any = True
+    if not rendered_any:
+        st.warning("No strategy docs found in docs/. Pull latest from main.")
 
 with tab_method:
     method_path = BASE_DIR / "docs" / "methodology.md"
