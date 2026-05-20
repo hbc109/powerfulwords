@@ -122,6 +122,137 @@ Rules for changing the strategy after v1:
 
 ---
 
+## Roadmap — closing the gap to pro shops
+
+What we have today ≈ a simplified, retail-scale version of a quant
+commodity fund's **signal layer**. The architecture (multi-factor
+composite, regime conditioning, forward-test, backtest) is
+recognizable. What's absent is everything *around* the signal:
+risk management, execution realism, portfolio construction, deep
+alt data, performance attribution.
+
+Four next-step priorities, ordered by leverage-per-effort. We don't
+have to do them — listed so we have a written view of what
+"closing the gap" would look like and what each step buys.
+
+### Priority 1 — Risk management (biggest leverage, smallest cost)
+
+**Why:** Real-world P&L gets crushed by absent risk management more
+often than by weak signals. Right now sizing is just `composite > 0.1
+→ 1x, > 0.4 → 2x`, no scaling for volatility, no drawdown auto-flat,
+no factor-exposure caps. The composite backtest's WTI max drawdown
+of −35.5% reflects this — the signal is profitable but the path is
+brutal.
+
+**What to add:**
+- **Vol-targeted sizing**: scale position size so each trade risks
+  the same dollar amount, computed from rolling ATR or realized vol.
+  Reduces the "got destroyed in one bad regime" risk.
+- **Drawdown auto-flat**: if rolling 20-day P&L drops past −X%, flat
+  all positions until recovery. Simple circuit breaker.
+- **Per-factor exposure cap**: don't let any single factor (e.g.,
+  inventory) drive more than Y% of the composite signal — protects
+  against a stale or broken factor sending the model in the wrong
+  direction.
+
+**Effort:** A few days of code, no new data. Backtest framework
+already exists, just need to wrap the position sizing layer.
+
+**Expected impact:** Doesn't help hit rate, but should improve
+Sharpe meaningfully (probably 0.6 → 0.9+ on WTI) and cut max DD by
+roughly half. Most importantly, makes the system *deployable* —
+right now the signal is interesting but the risk profile isn't.
+
+### Priority 2 — Spread / curve trading
+
+**Why:** Spreads often have better Sharpe than flat price because
+they cancel out systematic noise (dollar moves, Fed surprises). We
+already have all the data needed: WTI/Brent M1, M2, M3, M6 in the
+`market_prices` table; Brent-WTI computable from existing flat prices.
+
+**What to add:**
+- A second "book" in `paper_trades` for **WTI M1-M2 calendar spread**
+  with its own signal: term-structure z-score directly *is* the signal
+- A third book for **Brent-WTI flat spread** with a signal blending
+  positioning differential + narrative regional tilt
+- Same composite + backtest machinery, just operating on spread
+  prices instead of flat
+
+**Effort:** Maybe a week. New script + dashboard panel + per-book
+weights. The composite_score function already accepts symbol; just
+add new "symbols" for the spread positions.
+
+**Expected impact:** Pure additive — these trades are nearly
+uncorrelated with flat price PnL. Total Sharpe could rise materially
+just by spreading risk across decorrelated books.
+
+### Priority 3 — Cross-asset overlay
+
+**Why:** Oil-in-isolation misses real regime signals. A WTI rally
+with DXY ↑ and equities ↓ is a different beast than a WTI rally
+with DXY ↓ and equities ↑ (former is supply-driven, latter is
+demand/risk-on). At minimum, DXY and S&P-500 give a useful regime
+check.
+
+**What to add:**
+- Fetch DXY (`DX=F` or `DX-Y.NYB`), S&P-500 (`^GSPC`), 10y yield
+  (`^TNX`), copper (`HG=F`) via the existing yfinance fetcher.
+- A small "macro regime" classifier (dollar-strong vs weak,
+  risk-on vs risk-off) used as a meta-filter or extra factor.
+- Optional: veto rules ("don't add to long oil if dollar is
+  strengthening past 1σ — supply shock not confirmed by
+  cross-asset").
+
+**Effort:** ~1-2 days, free data.
+
+**Expected impact:** Modest standalone, but high leverage as a
+filter on the existing composite — should cut some of the WTI
+trend_down regime drag without losing the shock-regime wins.
+
+### Priority 4 — Alternative data (most expensive)
+
+**Why:** This is the *real* fix for Brent's persistent
+underperformance. The data we lack (ICE Brent COT, ARA stocks,
+Singapore stocks, satellite tank imagery, Vortexa/Kpler tanker
+flows) is exactly the data that drives Brent's price.
+
+**What to add:**
+- ICE Brent COT (paid Bloomberg/Refinitiv) — replace the niche
+  NYMEX BZ slice we currently use
+- Vortexa or Kpler API for tanker flows — actual floating storage
+  and Atlantic-basin movements
+- Platts ARA stocks (sub) — European inventory tightness
+- Enterprise Singapore weekly stocks (sub) — Asian demand pull
+
+**Effort:** Hours of integration per source + ongoing monthly cost
+(maybe $200-1000/mo depending on which you pick).
+
+**Expected impact:** Should bring Brent composite from −2.4pp under
+baseline to genuinely additive (+1-3pp). Would also enable physical-
+flow trading patterns (storage arbitrage, freight-driven plays).
+Only worth it if you commit serious capital to the model.
+
+### What we deliberately won't build
+
+Some "complete trading system" features are appropriate for an
+institutional desk but actively wrong for a retail-scale one-person
+setup:
+
+- **High-frequency / intraday signals** — execution alpha at <1s
+  scale requires infrastructure we don't have
+- **Compliance / regulatory reporting** — only needed past
+  CFTC large-trader thresholds (∼$1M+ notional positions)
+- **Multi-strategy orchestration** — meaningful only when running
+  3+ separate signal families
+- **Optionality / vol-surface trading** — requires options data
+  pipeline + Black-Scholes-aware risk system; pure flat price stays
+  simpler
+
+The discipline here is *don't build pro features unless they
+actually help at your scale*.
+
+---
+
 ### Template — copy below for the next change
 
 ```

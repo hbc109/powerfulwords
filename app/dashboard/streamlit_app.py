@@ -354,9 +354,9 @@ c5.metric("Average Event Confidence", avg_conf)
 
 st.info(f"Main Sources: {main_sources}")
 
-tab_recs, tab_upload, tab_library, tab1, tab_trends, tab2, tab3, tab_multi, tab_composite_bt, tab_paper, tab_ai, tab_daily, tab_method = st.tabs(
+tab_recs, tab_upload, tab_library, tab1, tab_trends, tab2, tab3, tab_multi, tab_composite_bt, tab_paper, tab_ai, tab_daily, tab_strategy, tab_method = st.tabs(
     ["Signal", "Upload", "Library", "Overview", "Trends", "Research",
-     "Baseline Backtest", "Baseline Multi-book", "Composite Backtest", "Paper Trading", "AI Judgment", "Daily Report", "Methodology"]
+     "Baseline Backtest", "Baseline Multi-book", "Composite Backtest", "Paper Trading", "AI Judgment", "Daily Report", "Strategy Notes", "Methodology"]
 )
 
 def _book_history_score(book_cfg, theme_scores_df, score_date_str):
@@ -2579,6 +2579,14 @@ with tab_daily:
         st.markdown(raw_path.read_text(encoding="utf-8"))
     else:
         st.info(f"No report for {picked_str} yet.")
+
+with tab_strategy:
+    strat_path = BASE_DIR / "docs" / "strategy_versions.md"
+    if strat_path.exists():
+        st.markdown(strat_path.read_text(encoding="utf-8"))
+    else:
+        st.warning(f"Strategy notes not found at {strat_path}")
+        st.caption("Expected file: docs/strategy_versions.md at repo root. Pull latest from main.")
 
 with tab_method:
     method_path = BASE_DIR / "docs" / "methodology.md"
