@@ -2225,8 +2225,21 @@ script for the same day is a no-op (won't double-record).
 """
         )
 
-    from app.scoring.paper_trading import load_trades, ensure_table
+    from app.scoring.paper_trading import (
+        load_trades, ensure_table, get_all_open_positions, compute_mtm_pct,
+    )
     ensure_table()  # make sure the table exists even before first snapshot
+
+    # Helper: latest close per symbol for MTM
+    def _latest_close(sym):
+        conn_local = sqlite3.connect(DB_PATH)
+        row = conn_local.execute(
+            "SELECT price_time, close FROM market_prices WHERE symbol=? "
+            "AND close IS NOT NULL ORDER BY price_time DESC LIMIT 1",
+            (sym,),
+        ).fetchone()
+        conn_local.close()
+        return (row[0][:10], row[1]) if row else (None, None)
 
     pt_all = load_trades(limit=400)
     if not pt_all:
@@ -2239,41 +2252,70 @@ script for the same day is a no-op (won't double-record).
                 st.caption(f"No trades recorded for {pt_sym} yet.")
                 continue
 
-            open_pos = next((t for t in sub if t["exit_date"] is None), None)
+            open_trades = sorted(
+                [t for t in sub if t["exit_date"] is None],
+                key=lambda t: t["plan_date"],
+            )
             closed = [t for t in sub if t["exit_date"] is not None]
+            mtm_date, mtm_px = _latest_close(pt_sym)
 
-            cP1, cP2, cP3, cP4 = st.columns(4)
-            cP1.metric("Open position",
-                       f"{open_pos['direction']} {abs(open_pos['target_position']):.0f}x" if open_pos else "—",
-                       delta=f"since {open_pos['plan_date']}" if open_pos else None)
+            # Live MTM per open trade
+            open_mtms = []
+            for t in open_trades:
+                m = compute_mtm_pct(t.get("entry_close"), mtm_px, t.get("target_position", 0))
+                open_mtms.append(m if m is not None else 0.0)
+            open_mtm_sum = sum(open_mtms) if open_mtms else 0.0
+
+            cP1, cP2, cP3, cP4, cP5 = st.columns(5)
+            cP1.metric("Open trades", len(open_trades))
+            cP2.metric("Open MTM (sum)", f"{open_mtm_sum:+.2%}",
+                       delta=f"vs {mtm_date} close" if mtm_date else None)
             n_closed = len(closed)
             wins = sum(1 for t in closed if (t.get("realized_pnl_pct") or 0) > 0)
             losses = sum(1 for t in closed if (t.get("realized_pnl_pct") or 0) < 0)
             hr = (wins / (wins + losses)) if (wins + losses) else None
-            cP2.metric("Closed trades", n_closed)
-            cP3.metric("Hit rate", f"{hr:.1%}" if hr is not None else "n/a")
-            # Cumulative paper PnL (sum of realized_pnl_pct, no compounding for now)
+            cP3.metric("Closed trades", n_closed)
+            cP4.metric("Closed hit rate", f"{hr:.1%}" if hr is not None else "n/a")
             cum = sum((t.get("realized_pnl_pct") or 0) for t in closed)
-            cP4.metric("Cumulative realized %", f"{cum:+.2%}")
+            cP5.metric("Realized total %", f"{cum:+.2%}")
 
-            if open_pos:
-                with st.expander(f"📌 Open position — {open_pos['direction']} {abs(open_pos['target_position']):.0f}x since {open_pos['plan_date']}", expanded=True):
-                    st.write(f"**Reasoning**: {open_pos.get('reasoning', '—')}")
-                    st.caption(
-                        f"Composite {open_pos.get('composite_score'):+.3f} · regime `{open_pos.get('regime')}` · "
-                        f"entry close ${open_pos.get('entry_close'):,.2f} (settle @ {open_pos['plan_date']} 14:30 ET)"
-                        if open_pos.get('composite_score') is not None
-                        else f"regime `{open_pos.get('regime')}`"
-                    )
-                    if open_pos.get("notes"):
-                        st.write(f"📝 Notes: {open_pos['notes']}")
-                    bd = open_pos.get("breakdown") or []
-                    if bd:
-                        st.dataframe(pd.DataFrame([
-                            {"factor": r["factor"], "value (z)": round(r["value"], 3),
-                             "weight": round(r["weight"], 3), "contribution": round(r["contribution"], 3)}
-                            for r in bd
-                        ]), width="stretch", hide_index=True)
+            if open_trades:
+                st.markdown(
+                    f"**Open positions** ({len(open_trades)}) — MTM vs {pt_sym} close "
+                    f"${mtm_px:,.2f} on {mtm_date}:" if mtm_px else "**Open positions:**"
+                )
+                for t, mtm in zip(open_trades, open_mtms):
+                    pos = t.get("target_position", 0.0)
+                    direction = t.get("direction", "?")
+                    color = {"LONG": "🟢", "SHORT": "🔴", "FLAT": "⚪"}.get(direction, "·")
+                    mtm_emoji = "✅" if mtm > 0 else ("❌" if mtm < 0 else "·")
+                    age_days = ""
+                    try:
+                        from datetime import date as _d
+                        age_days = f" · {(_d.fromisoformat(mtm_date) - _d.fromisoformat(t['plan_date'])).days}d held" if mtm_date else ""
+                    except Exception:
+                        pass
+                    head = (f"{color} **{t['plan_date']}** · `{t.get('regime', '?')}` · "
+                            f"{direction} {abs(pos):.0f}x · entry ${t.get('entry_close', 0):,.2f}"
+                            f" · {mtm_emoji} **{mtm:+.2%} MTM**{age_days}")
+                    with st.expander(head):
+                        st.write(f"**Reasoning**: {t.get('reasoning', '—')}")
+                        if t.get("notes"):
+                            st.write(f"📝 Notes: {t['notes']}")
+                        cT1, cT2, cT3 = st.columns(3)
+                        cT1.metric(f"Entry close · {t['plan_date']} 14:30 ET",
+                                   f"${t.get('entry_close', 0):,.2f}")
+                        if mtm_px:
+                            cT2.metric(f"Latest close · {mtm_date} 14:30 ET",
+                                       f"${mtm_px:,.2f}")
+                        cT3.metric("Unrealized PnL", f"{mtm:+.2%}")
+                        bd = t.get("breakdown") or []
+                        if bd:
+                            st.dataframe(pd.DataFrame([
+                                {"factor": r["factor"], "value (z)": round(r["value"], 3),
+                                 "weight": round(r["weight"], 3), "contribution": round(r["contribution"], 3)}
+                                for r in bd
+                            ]), width="stretch", hide_index=True)
 
             if closed:
                 st.markdown("**Closed trades** — newest first. Header shows `entry → exit · direction · regime · composite · realized PnL · hold`.")

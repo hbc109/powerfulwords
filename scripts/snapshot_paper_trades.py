@@ -32,7 +32,7 @@ import pandas as pd
 from app.db.database import get_connection
 from app.scoring.composite import composite_score
 from app.scoring.factors import positioning_factor, inventory_factor, term_structure_factor
-from app.scoring.paper_trading import record_snapshot
+from app.scoring.paper_trading import record_snapshot, evaluate_closes
 from app.strategy.backtest_engine import score_to_target_position, aggregate_score_by_date
 
 
@@ -149,8 +149,23 @@ def main() -> None:
 
         target_position = score_to_target_position(composite, COMPOSITE_CFG) if composite is not None else 0.0
         direction = "LONG" if target_position > 0 else ("SHORT" if target_position < 0 else "FLAT")
-        entry_close = _latest_close_on_or_before(sym, plan_date, conn)
+        latest_close = _latest_close_on_or_before(sym, plan_date, conn)
 
+        # 1) Run close evaluation FIRST — any open positions whose direction
+        #    has reversed past the opposite entry threshold close at today's close.
+        closed_ids = evaluate_closes(
+            symbol=sym,
+            asof=plan_date,
+            current_composite=composite,
+            exit_close=latest_close,
+            entry_threshold_long=COMPOSITE_CFG["entry_threshold_long"],
+            entry_threshold_short=COMPOSITE_CFG["entry_threshold_short"],
+            conn=conn,
+        )
+        if closed_ids:
+            print(f"  {sym}: closed open positions {closed_ids} on reversal")
+
+        # 2) Then record today's snapshot if signal is active (LONG/SHORT past threshold).
         result = record_snapshot(
             plan_date=plan_date,
             symbol=sym,
@@ -163,12 +178,15 @@ def main() -> None:
             positioning=pos,
             inventory=inv,
             breakdown=breakdown,
-            entry_close=entry_close,
+            entry_close=latest_close,
             conn=conn,
         )
-        msg = "DUPLICATE skipped" if result.get("skipped_dup") else f"id={result['trade_id']}"
-        if result.get("resolved"):
-            msg += f"  resolved prev id={result['resolved']}"
+        if result.get("skipped_dup"):
+            msg = "DUPLICATE skipped (snapshot already exists for today)"
+        elif result.get("skipped_flat"):
+            msg = "FLAT — no new trade recorded"
+        else:
+            msg = f"opened new trade id={result['trade_id']}"
         print(f"  {sym}: {direction} {abs(target_position):.0f}x  composite={composite}  ({msg})")
         print(f"    {result['reasoning']}")
 

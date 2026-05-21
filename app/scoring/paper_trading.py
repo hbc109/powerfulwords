@@ -102,6 +102,115 @@ def get_open_position(conn: sqlite3.Connection, symbol: str) -> Optional[sqlite3
     return cur.fetchone()
 
 
+def get_all_open_positions(symbol: Optional[str] = None,
+                           conn: Optional[sqlite3.Connection] = None) -> list:
+    """All open trades, optionally filtered by symbol. Sorted oldest-first."""
+    own = conn is None
+    if own:
+        conn = get_connection()
+    ensure_table(conn)
+    sql = "SELECT * FROM paper_trades WHERE exit_date IS NULL"
+    params: list = []
+    if symbol:
+        sql += " AND symbol=?"
+        params.append(symbol)
+    sql += " ORDER BY plan_date ASC, trade_id ASC"
+    cur = conn.execute(sql, params)
+    cur.row_factory = sqlite3.Row
+    rows = [dict(r) for r in cur.fetchall()]
+    if own:
+        conn.close()
+    for r in rows:
+        if r.get("breakdown_json"):
+            try:
+                r["breakdown"] = json.loads(r["breakdown_json"])
+            except Exception:
+                r["breakdown"] = None
+    return rows
+
+
+def evaluate_closes(
+    symbol: str,
+    asof: date,
+    current_composite: Optional[float],
+    exit_close: Optional[float],
+    *,
+    entry_threshold_long: float = 0.10,
+    entry_threshold_short: float = -0.10,
+    conn: Optional[sqlite3.Connection] = None,
+) -> list:
+    """Close all open trades for `symbol` whose direction has reversed past
+    the opposite entry threshold given today's composite.
+
+    Rule (option A — "reversal past opposite entry threshold"):
+      - Open LONG → closed if current_composite <= entry_threshold_short (default -0.10)
+      - Open SHORT → closed if current_composite >= entry_threshold_long (default +0.10)
+      - Open FLAT → never auto-closed (FLAT is "no trade", not a directional view)
+
+    Returns list of closed trade_ids.
+    """
+    own = conn is None
+    if own:
+        conn = get_connection()
+    ensure_table(conn)
+
+    if current_composite is None or exit_close is None:
+        if own:
+            conn.close()
+        return []
+
+    cur = conn.execute(
+        "SELECT trade_id, plan_date, direction, target_position, entry_close "
+        "FROM paper_trades WHERE symbol=? AND exit_date IS NULL",
+        (symbol,),
+    )
+    cur.row_factory = sqlite3.Row
+    open_trades = cur.fetchall()
+
+    closed_ids: list = []
+    asof_iso = asof.isoformat()
+    for tr in open_trades:
+        d = tr["direction"]
+        should_close = False
+        if d == "LONG" and current_composite <= entry_threshold_short:
+            should_close = True
+        elif d == "SHORT" and current_composite >= entry_threshold_long:
+            should_close = True
+        if not should_close:
+            continue
+        entry_px = tr["entry_close"]
+        if entry_px and exit_close:
+            raw_ret = (exit_close / entry_px) - 1.0
+            pnl_pct = raw_ret * float(tr["target_position"])
+        else:
+            pnl_pct = None
+        try:
+            d_in = date.fromisoformat(tr["plan_date"])
+            holding = (asof - d_in).days
+        except Exception:
+            holding = None
+        conn.execute(
+            "UPDATE paper_trades SET exit_date=?, exit_close=?, realized_pnl_pct=?, holding_days=? "
+            "WHERE trade_id=?",
+            (asof_iso, exit_close, pnl_pct, holding, tr["trade_id"]),
+        )
+        closed_ids.append(tr["trade_id"])
+
+    if closed_ids:
+        conn.commit()
+    if own:
+        conn.close()
+    return closed_ids
+
+
+def compute_mtm_pct(entry_close: Optional[float], current_close: Optional[float],
+                    target_position: float) -> Optional[float]:
+    """Unrealized PnL pct for an open position, marked at current_close."""
+    if not entry_close or not current_close:
+        return None
+    return (current_close / entry_close - 1.0) * float(target_position)
+
+
 def record_snapshot(
     plan_date: date,
     symbol: str,
@@ -140,31 +249,17 @@ def record_snapshot(
     if existing:
         if own:
             conn.close()
-        return {"trade_id": existing[0], "resolved": None, "reasoning": reasoning, "skipped_dup": True}
+        return {"trade_id": existing[0], "resolved": None, "reasoning": reasoning,
+                "skipped_dup": True, "skipped_flat": False}
 
-    # Auto-resolve any open position for this symbol if direction changed
-    open_row = get_open_position(conn, symbol)
-    resolved_id = None
-    if open_row is not None:
-        prev_dir = open_row["direction"]
-        if prev_dir != direction:
-            entry_px = open_row["entry_close"]
-            if entry_px and entry_close:
-                raw_ret = (entry_close / entry_px) - 1.0
-                pnl_pct = raw_ret * float(open_row["target_position"])
-            else:
-                pnl_pct = None
-            try:
-                d_in = date.fromisoformat(open_row["plan_date"])
-                holding = (plan_date - d_in).days
-            except Exception:
-                holding = None
-            conn.execute(
-                "UPDATE paper_trades SET exit_date=?, exit_close=?, realized_pnl_pct=?, holding_days=? "
-                "WHERE trade_id=?",
-                (plan_date_iso, entry_close, pnl_pct, holding, open_row["trade_id"]),
-            )
-            resolved_id = open_row["trade_id"]
+    # Skip FLAT signals — FLAT is "no trade today", not a position. We don't
+    # pollute the ledger with FLAT entries. Closes of existing positions are
+    # handled separately by evaluate_closes().
+    if direction == "FLAT" or target_position == 0:
+        if own:
+            conn.close()
+        return {"trade_id": None, "resolved": None, "reasoning": reasoning,
+                "skipped_dup": False, "skipped_flat": True}
 
     conn.execute(
         """INSERT INTO paper_trades (
@@ -183,7 +278,8 @@ def record_snapshot(
     conn.commit()
     if own:
         conn.close()
-    return {"trade_id": trade_id, "resolved": resolved_id, "reasoning": reasoning, "skipped_dup": False}
+    return {"trade_id": trade_id, "resolved": None, "reasoning": reasoning,
+            "skipped_dup": False, "skipped_flat": False}
 
 
 def load_trades(symbol: Optional[str] = None, limit: Optional[int] = None,
