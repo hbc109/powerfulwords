@@ -165,26 +165,63 @@ right now the signal is interesting but the risk profile isn't.
 
 ### Priority 2 — Spread / curve trading
 
-**Why:** Spreads often have better Sharpe than flat price because
-they cancel out systematic noise (dollar moves, Fed surprises). We
-already have all the data needed: WTI/Brent M1, M2, M3, M6 in the
-`market_prices` table; Brent-WTI computable from existing flat prices.
+**Why this is the natural fit for retail edge.** Calendar spreads
+(M1 − M2) have structural properties that make them dramatically
+more retail-friendly than outright flat price:
 
-**What to add:**
-- A second "book" in `paper_trades` for **WTI M1-M2 calendar spread**
-  with its own signal: term-structure z-score directly *is* the signal
-- A third book for **Brent-WTI flat spread** with a signal blending
-  positioning differential + narrative regional tilt
-- Same composite + backtest machinery, just operating on spread
-  prices instead of flat
+| Property | Outright | Calendar spread (M1-M2) |
+|---|---|---|
+| Annualized volatility | ~30-40% | ~10-15% |
+| Beta to macro shocks (Fed, $-dollar, equities) | High — both legs of outright trade move together | **Near zero** — same commodity, macro moves cancel |
+| Capital required | Full notional × position | Margin offset for paired contracts: often 30-60% less |
+| What it captures | Direction of oil prices | **Physical tightness vs. oversupply** — the structural signal |
+| Historical Sharpe (well-timed spread trades) | 0.4-0.7 | Often 1.0+ |
 
-**Effort:** Maybe a week. New script + dashboard panel + per-book
-weights. The composite_score function already accepts symbol; just
-add new "symbols" for the spread positions.
+The key intuition: a LONG WTI outright trade exposes you to *"Iran
+tension drops, oil tanks 5%"* risk. A LONG WTI M1-M2 spread doesn't
+care about flat price at all — it only cares about whether the curve
+stays in backwardation or rolls into contango. That's a much more
+focused signal, and the kind of signal where physical-flow data
+(which moves slowly) actually leads price (which moves fast).
 
-**Expected impact:** Pure additive — these trades are nearly
-uncorrelated with flat price PnL. Total Sharpe could rise materially
-just by spreading risk across decorrelated books.
+**We already have ~80% of the infrastructure:**
+
+| Have | Still need |
+|---|---|
+| M1, M2, M3, M6 prices in `market_prices` for both WTI and Brent | Compute and store spread series (M1−M2, M1−M3) as their own "symbols" — e.g., `WTI_M1M2_SPREAD` |
+| `term_structure_factor` already z-scores the M1-M2 spread | Use it as-is — z-score IS the natural signal for spread trades |
+| Composite, regime, backtest, paper-trading engine | A second "book" in `paper_trades` with spread symbols. Composite_score already accepts symbol; add new entries to `regime_factor_weights` |
+| Position sizing via thresholds | Re-tune thresholds — spread vol is ~⅓ outright vol, so signal thresholds need to be tighter (probably ±0.05 instead of ±0.10) |
+
+**One real gotcha — the roll.** When the M1 contract expires, "M1-M2"
+becomes "(new M1) - (new M2)", which is the *deferred* M2-M3 spread
+in old terms. The reported spread changes discontinuously even though
+nothing economically happened. The paper-trade book has to handle
+this cleanly — either:
+- Close spread positions a few days before each roll and reopen on
+  the new front contracts (simpler, slight slippage)
+- Or carry positions across the roll with a synthetic adjustment to
+  the entry price (cleaner PnL accounting, more code)
+
+We'd start with option 1 and only build option 2 if backtest shows
+the roll P&L noise is meaningful.
+
+**Effort:** ~1 week. New fetcher changes (already done — just store
+the derived spread alongside), spread book in `paper_trades`, dashboard
+panel mirroring the existing one, backtest framework adaption.
+
+**Expected impact:** Pure additive — calendar spread P&L is nearly
+uncorrelated with flat price P&L, so portfolio Sharpe rises just by
+running both books simultaneously. Expect spread book Sharpe ≥ 1.0
+on a regime-conditional version of the existing term-structure
+signal.
+
+**Why this should NOT be Priority 1 despite the appeal.** Spread
+*blowouts* during physical events (sudden contango-to-backwardation
+flips, or vice versa) are bigger than typical spread vol — without
+vol-targeted sizing in place, they can hurt disproportionately.
+Build risk management (P1) first; then a spread book is much safer
+to deploy.
 
 ### Priority 3 — Cross-asset overlay
 
