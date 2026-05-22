@@ -82,4 +82,30 @@ def fetch_term_structure(
                     "close": float(row["Close"]) if row["Close"] else None,
                     "volume": float(row["Volume"]) if row["Volume"] else None,
                 })
-    return rows
+
+    # Derive M1-M2 spread series for each commodity (synthetic "tradable" symbol
+    # used by the spread book in paper_trades). One row per (date, commodity).
+    by_date_sym: dict[tuple, float] = {
+        (r["price_time"], r["symbol"]): r["close"]
+        for r in rows if r.get("close") is not None
+    }
+    spread_rows: List[dict] = []
+    for commodity in commodities:
+        if commodity not in PREFIX:
+            continue
+        m1_sym, m2_sym = f"{commodity}_M1", f"{commodity}_M2"
+        dates = sorted({k[0] for k in by_date_sym.keys() if k[1] == m1_sym})
+        for d in dates:
+            m1c = by_date_sym.get((d, m1_sym))
+            m2c = by_date_sym.get((d, m2_sym))
+            if m1c is None or m2c is None:
+                continue
+            spread = m1c - m2c
+            spread_rows.append({
+                "price_time": d,
+                "symbol": f"{commodity}_M1M2",
+                "asset_type": "spread",
+                "open": spread, "high": spread, "low": spread, "close": spread,
+                "volume": None,
+            })
+    return rows + spread_rows

@@ -48,6 +48,23 @@ COMPOSITE_CFG = {
 
 SYMBOLS = [("WTI", "wti_outright"), ("Brent", "brent_outright")]
 
+# Spread book — single-factor signal (term_structure z-score IS the signal),
+# no regime conditioning, no composite blending. Same close-rule
+# semantics as the outright book.
+SPREAD_SYMBOLS = ["WTI_M1M2", "Brent_M1M2"]
+
+# Spread positions use slightly tighter thresholds — fewer, higher-conviction
+# spread trades match the retail-edge thesis on this book.
+SPREAD_CFG = {
+    "entry_threshold_long":          0.30,
+    "entry_threshold_short":        -0.30,
+    "strong_entry_threshold_long":   0.80,
+    "strong_entry_threshold_short": -0.80,
+    "base_position":     1.0,
+    "strong_position":   2.0,
+    "max_abs_position":  2.0,
+}
+
 
 def _load_book_cfg(name: str) -> dict:
     cfg_path = BASE_DIR / "app" / "config" / "multi_strategy_config.json"
@@ -189,6 +206,63 @@ def main() -> None:
             msg = f"opened new trade id={result['trade_id']}"
         print(f"  {sym}: {direction} {abs(target_position):.0f}x  composite={composite}  ({msg})")
         print(f"    {result['reasoning']}")
+
+    # ---- Spread book ----
+    print()
+    print("Spread book (term_structure z-score is the signal):")
+    for spread_sym in SPREAD_SYMBOLS:
+        # Term-structure z-score is the signal (calls into existing factor function)
+        try:
+            ts_z = term_structure_factor(spread_sym, plan_date)
+        except Exception as e:
+            ts_z = None
+            print(f"  {spread_sym}: term_structure_factor unavailable: {e}")
+        target_position = score_to_target_position(ts_z, SPREAD_CFG) if ts_z is not None else 0.0
+        direction = "LONG" if target_position > 0 else ("SHORT" if target_position < 0 else "FLAT")
+        spread_close = _latest_close_on_or_before(spread_sym, plan_date, conn)
+
+        # 1) Close any opens whose direction reversed past the opposite entry threshold
+        closed_ids = evaluate_closes(
+            symbol=spread_sym,
+            asof=plan_date,
+            current_composite=ts_z,
+            exit_close=spread_close,
+            entry_threshold_long=SPREAD_CFG["entry_threshold_long"],
+            entry_threshold_short=SPREAD_CFG["entry_threshold_short"],
+            conn=conn,
+        )
+        if closed_ids:
+            print(f"  {spread_sym}: closed open spread positions {closed_ids} on reversal")
+
+        # 2) Open new spread trade if signal active. Composite/breakdown fields
+        #    are repurposed for the spread book: composite_score = the z-score,
+        #    breakdown = single-row pseudo-breakdown.
+        breakdown = [{"factor": "term_structure", "value": ts_z, "weight": 1.0,
+                      "contribution": ts_z}] if ts_z is not None else []
+        result = record_snapshot(
+            plan_date=plan_date,
+            symbol=spread_sym,
+            direction=direction,
+            target_position=target_position,
+            composite_score=ts_z,
+            regime="spread_book",   # marker so the dashboard knows
+            narrative_z=None,
+            term_structure=ts_z,
+            positioning=None,
+            inventory=None,
+            breakdown=breakdown,
+            entry_close=spread_close,
+            conn=conn,
+        )
+        if result.get("skipped_dup"):
+            msg = "DUPLICATE skipped"
+        elif result.get("skipped_flat"):
+            msg = "FLAT — no new spread trade recorded"
+        else:
+            msg = f"opened new spread trade id={result['trade_id']}"
+        ts_str = f"{ts_z:+.3f}" if ts_z is not None else "n/a"
+        spread_str = f"{spread_close:+.2f}" if spread_close is not None else "n/a"
+        print(f"  {spread_sym}: {direction} {abs(target_position):.0f}x  z={ts_str}  spread={spread_str}  ({msg})")
 
     conn.close()
 

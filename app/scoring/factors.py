@@ -16,7 +16,15 @@ from typing import Optional
 from app.db.database import get_connection
 
 
-SUPPORTED_TERM_STRUCTURE_SYMBOLS = ("WTI", "Brent")
+SUPPORTED_TERM_STRUCTURE_SYMBOLS = ("WTI", "Brent", "WTI_M1M2", "Brent_M1M2")
+
+
+def _parent_for_term_structure(symbol: str) -> str:
+    """Map a spread symbol (WTI_M1M2) back to its parent (WTI) so we look
+    up the right M1/M2 series. Outright symbols pass through."""
+    if symbol.endswith("_M1M2"):
+        return symbol[: -len("_M1M2")]
+    return symbol
 SUPPORTED_POSITIONING_SYMBOLS = ("WTI", "Brent")
 SUPPORTED_INVENTORY_SYMBOLS = ("WTI", "Brent")
 
@@ -188,8 +196,9 @@ def term_structure_factor(
             f"term_structure_factor supports {SUPPORTED_TERM_STRUCTURE_SYMBOLS}, got {symbol!r}"
         )
 
-    m1_sym = f"{symbol}_M1"
-    m2_sym = f"{symbol}_M2"
+    parent = _parent_for_term_structure(symbol)
+    m1_sym = f"{parent}_M1"
+    m2_sym = f"{parent}_M2"
     start = (asof - timedelta(days=lookback_days)).isoformat()
     end = asof.isoformat()
 

@@ -2245,7 +2245,7 @@ script for the same day is a no-op (won't double-record).
     if not pt_all:
         st.info("No paper trades yet. Run `python scripts/snapshot_paper_trades.py` (or wait for tonight's 03:30 cron).")
     else:
-        for pt_sym in ["WTI", "Brent"]:
+        for pt_sym in ["WTI", "Brent", "WTI_M1M2", "Brent_M1M2"]:
             sub = [t for t in pt_all if t["symbol"] == pt_sym]
             st.markdown(f"### {pt_sym}")
             if not sub:
