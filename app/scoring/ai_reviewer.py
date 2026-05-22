@@ -65,6 +65,34 @@ sentences instead of padding. Do not invent facts or quote prices you
 haven't been shown."""
 
 
+_SIGNAL_THRESHOLD = 0.10
+_STRONG_THRESHOLD = 0.40
+
+
+def _direction_from_composite(c):
+    if c is None:
+        return "FLAT"
+    if c >= _SIGNAL_THRESHOLD:
+        return "LONG"
+    if c <= -_SIGNAL_THRESHOLD:
+        return "SHORT"
+    return "FLAT"
+
+
+def _position_from_composite(c):
+    if c is None:
+        return 0.0
+    if c >= _STRONG_THRESHOLD:
+        return 2.0
+    if c >= _SIGNAL_THRESHOLD:
+        return 1.0
+    if c <= -_STRONG_THRESHOLD:
+        return -2.0
+    if c <= -_SIGNAL_THRESHOLD:
+        return -1.0
+    return 0.0
+
+
 def ensure_table(conn: Optional[sqlite3.Connection] = None) -> None:
     own = conn is None
     if own:
@@ -76,31 +104,121 @@ def ensure_table(conn: Optional[sqlite3.Connection] = None) -> None:
 
 
 def _gather_context(review_date: date, conn: sqlite3.Connection) -> dict:
-    """Collect the inputs the LLM will reason over for the review."""
+    """Collect the inputs the LLM will reason over for the review.
+
+    Signal data comes from TWO sources to expose any morning-vs-live drift:
+      - `signals_live` — composite computed fresh right now (same as Signal tab)
+      - `signals_morning_snapshot` — what paper_trades locked in at the 07:00
+        cron (may be FLAT or missing on quiet days)
+    Themes / titles / recent closed trades come from the DB as before.
+    """
+    # Import here to avoid top-level circular dependency.
+    import pandas as pd
+    from app.scoring.composite import composite_score
+    from app.scoring.factors import positioning_factor, inventory_factor, term_structure_factor
+    from app.strategy.backtest_engine import aggregate_score_by_date
+
+    SYMBOL_BOOK_PAIRS = [("WTI", "wti_outright"), ("Brent", "brent_outright")]
+    cfg_path = Path(__file__).resolve().parents[1] / "config" / "multi_strategy_config.json"
+
+    def _book_cfg(name):
+        cfg = json.loads(cfg_path.read_text())
+        for b in cfg.get("books", []):
+            if b.get("name") == name:
+                return b
+        return {}
+
+    def _narrative_z(book_cfg, theme_scores_df, asof_d):
+        weights = (book_cfg.get("scoring") or {}).get("theme_weights")
+        rows = [{"score_date": str(r["score_date"]), "theme": r["theme"],
+                 "narrative_score": float(r["narrative_score"])}
+                for _, r in theme_scores_df.iterrows()]
+        agg = aggregate_score_by_date(rows, weights=weights, group_field="theme")
+        if not agg:
+            return None
+        df = pd.DataFrame(agg).sort_values("score_date").reset_index(drop=True)
+        df["score_date"] = df["score_date"].astype(str)
+        df["aggregate_score"] = df["aggregate_score"].astype(float)
+        before = df[df["score_date"] <= asof_d.isoformat()].tail(31)
+        if len(before) < 6:
+            return None
+        today_val = float(before.iloc[-1]["aggregate_score"])
+        prior = before.iloc[:-1]["aggregate_score"]
+        mean, std = prior.mean(), prior.std()
+        if std == 0 or pd.isna(std):
+            return None
+        return (today_val - mean) / std
+
     ctx: dict = {"review_date": review_date.isoformat()}
 
-    # Today's paper-trade snapshots (the canonical signal record for the day)
+    # --- Source A: LIVE composite computed right now (matches Signal tab) ---
+    theme_scores = pd.read_sql(
+        "SELECT score_date, theme, narrative_score FROM daily_theme_scores "
+        "WHERE commodity='crude_oil'",
+        conn,
+    )
+    ctx["signals_live"] = []
+    for sym, book_name in SYMBOL_BOOK_PAIRS:
+        regime_row = conn.execute(
+            "SELECT primary_regime FROM daily_regimes WHERE symbol=? AND regime_date<=? "
+            "ORDER BY regime_date DESC LIMIT 1",
+            (sym, review_date.isoformat()),
+        ).fetchone()
+        regime = regime_row[0] if regime_row else None
+        nz = _narrative_z(_book_cfg(book_name), theme_scores, review_date) if regime else None
+        try: ts = term_structure_factor(sym, review_date)
+        except Exception: ts = None
+        try: pos = positioning_factor(sym, review_date)
+        except Exception: pos = None
+        try: inv = inventory_factor(sym, review_date)
+        except Exception: inv = None
+        composite = None
+        breakdown = []
+        if regime and nz is not None:
+            try:
+                out = composite_score(sym, regime, nz,
+                                      {"term_structure": ts, "positioning": pos, "inventory": inv})
+                composite = float(out["total"])
+                breakdown = out.get("breakdown", [])
+            except KeyError:
+                pass
+        ctx["signals_live"].append({
+            "symbol": sym, "regime": regime, "composite": composite,
+            "narrative_z": nz, "term_structure": ts, "positioning": pos, "inventory": inv,
+            "breakdown": breakdown,
+        })
+
+    # --- Source B: morning paper_trades snapshot (what got LOCKED at 07:00) ---
     snaps = conn.execute(
-        "SELECT symbol, direction, target_position, composite_score, regime, "
+        "SELECT symbol, plan_date, direction, target_position, composite_score, regime, "
         "       narrative_z, term_structure, positioning, inventory, "
         "       breakdown_json, entry_close, reasoning "
         "FROM paper_trades WHERE plan_date=? ORDER BY symbol",
         (review_date.isoformat(),),
     ).fetchall()
-    ctx["signals_today"] = []
+    ctx["signals_morning_snapshot"] = []
     for r in snaps:
         try:
-            breakdown = json.loads(r[9]) if r[9] else []
+            breakdown = json.loads(r[10]) if r[10] else []
         except Exception:
             breakdown = []
-        ctx["signals_today"].append({
-            "symbol": r[0], "direction": r[1], "target_position": r[2],
-            "composite": r[3], "regime": r[4],
-            "narrative_z": r[5], "term_structure": r[6],
-            "positioning": r[7], "inventory": r[8],
-            "breakdown": breakdown, "entry_close": r[10],
-            "auto_reasoning": r[11],
+        ctx["signals_morning_snapshot"].append({
+            "symbol": r[0], "plan_date": r[1], "direction": r[2], "target_position": r[3],
+            "composite": r[4], "regime": r[5],
+            "narrative_z": r[6], "term_structure": r[7],
+            "positioning": r[8], "inventory": r[9],
+            "breakdown": breakdown, "entry_close": r[11],
+            "auto_reasoning": r[12],
         })
+
+    # Back-compat: keep `signals_today` keyed to the live readings (most prompts /
+    # formatters expect that key). Morning snapshot is exposed alongside.
+    ctx["signals_today"] = [
+        {**s, "direction": _direction_from_composite(s.get("composite")),
+              "target_position": _position_from_composite(s.get("composite")),
+              "entry_close": None, "auto_reasoning": None}
+        for s in ctx["signals_live"]
+    ]
 
     # Top narrative themes over the last 7 days
     theme_window_start = (review_date - timedelta(days=7)).isoformat()
@@ -151,24 +269,58 @@ def _gather_context(review_date: date, conn: sqlite3.Connection) -> dict:
 def _format_context_for_llm(ctx: dict) -> str:
     """Turn the structured context into a compact prompt body."""
     lines = [f"Review date: {ctx['review_date']}", ""]
-    lines.append("== Today's signal ==")
-    if not ctx["signals_today"]:
-        lines.append("(no snapshot recorded for today)")
-    for s in ctx["signals_today"]:
+
+    # LIVE signal — what the Signal tab shows right now
+    lines.append("== Live signal (computed at review time, matches Signal tab) ==")
+    live = ctx.get("signals_live") or []
+    if not live:
+        lines.append("(no live signal — likely missing data or regime row)")
+    for s in live:
         comp = s["composite"]
         comp_str = f"{comp:+.3f}" if isinstance(comp, (int, float)) else "n/a"
+        direction = _direction_from_composite(comp)
+        size = abs(_position_from_composite(comp))
         lines.append(
-            f"{s['symbol']}: {s['direction']} {abs(s['target_position'] or 0):.0f}x · "
-            f"regime `{s['regime']}` · composite {comp_str}"
+            f"{s['symbol']}: {direction} {size:.0f}x · "
+            f"regime `{s.get('regime') or '?'}` · composite {comp_str}"
         )
         for f in ["narrative_z", "term_structure", "positioning", "inventory"]:
             v = s.get(f)
             if isinstance(v, (int, float)):
                 lines.append(f"  - {f}: {v:+.3f}")
+    lines.append("")
+
+    # MORNING snapshot — what paper_trades locked in at the 07:00 cron
+    morning = ctx.get("signals_morning_snapshot") or []
+    lines.append("== Morning paper-trade snapshot (07:00 cron lock) ==")
+    if not morning:
+        lines.append("(no morning snapshot — composite was FLAT at 07:00 today, so no row was opened)")
+    for s in morning:
+        comp = s["composite"]
+        comp_str = f"{comp:+.3f}" if isinstance(comp, (int, float)) else "n/a"
+        lines.append(
+            f"{s['symbol']} ({s['plan_date']}): {s['direction']} {abs(s['target_position'] or 0):.0f}x · "
+            f"regime `{s['regime']}` · composite {comp_str}"
+        )
         if s.get("auto_reasoning"):
             lines.append(f"  rule-based reasoning: {s['auto_reasoning']}")
         if s.get("entry_close"):
-            lines.append(f"  entry close: {s['entry_close']:,.2f}")
+            lines.append(f"  entry close locked at: {s['entry_close']:,.2f}")
+
+    # Drift note if live and morning meaningfully diverge
+    drift_lines = []
+    for live_s in live:
+        morn_match = next((m for m in morning if m["symbol"] == live_s["symbol"]), None)
+        if morn_match and isinstance(morn_match.get("composite"), (int, float)) and isinstance(live_s.get("composite"), (int, float)):
+            delta = live_s["composite"] - morn_match["composite"]
+            if abs(delta) >= 0.20:
+                drift_lines.append(
+                    f"  ⚠ {live_s['symbol']} composite drifted {delta:+.3f} since 07:00 "
+                    f"(morning {morn_match['composite']:+.3f} → live {live_s['composite']:+.3f})"
+                )
+    if drift_lines:
+        lines.append("\n== Intraday drift (live vs morning) ==")
+        lines.extend(drift_lines)
     lines.append("")
     lines.append("== Recent narrative themes (7d, top by absolute summed score) ==")
     for t in ctx["recent_themes_7d"]:
@@ -203,8 +355,9 @@ def generate_review(review_date: date, *, model: str = DEFAULT_MODEL) -> dict:
     ctx = _gather_context(review_date, conn)
     conn.close()
 
-    if not ctx.get("signals_today"):
-        return {"status": "skipped", "reason": "no paper-trade snapshot for this date yet",
+    if not any(s.get("composite") is not None for s in ctx.get("signals_live", [])):
+        return {"status": "skipped",
+                "reason": "no live composite (missing regime / narrative for this date)",
                 "review_text": None, "model": model, "context": ctx}
 
     try:
@@ -245,11 +398,12 @@ def prepare_prompt(review_date: date) -> dict:
     ensure_table(conn)
     ctx = _gather_context(review_date, conn)
     conn.close()
-    if not ctx.get("signals_today"):
+    if not any(s.get("composite") is not None for s in ctx.get("signals_live", [])):
         return {"system": SYSTEM_PROMPT, "user": "", "context": ctx,
                 "ready": False,
-                "reason": f"No paper-trade snapshot exists for {review_date}. "
-                          f"Run `python scripts/snapshot_paper_trades.py --date {review_date}` first."}
+                "reason": f"No live composite for {review_date}. Missing regime row, or narrative_z "
+                          f"requires at least 6 days of theme scores up to this date — verify the "
+                          f"hourly pipeline ran for fetch_prices / compute_regimes / score_narratives."}
     user_prompt = _format_context_for_llm(ctx)
     return {"system": SYSTEM_PROMPT, "user": user_prompt, "context": ctx,
             "ready": True, "reason": None}
