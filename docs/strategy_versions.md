@@ -131,11 +131,66 @@ recognizable. What's absent is everything *around* the signal:
 risk management, execution realism, portfolio construction, deep
 alt data, performance attribution.
 
-Four next-step priorities, ordered by leverage-per-effort. We don't
-have to do them — listed so we have a written view of what
-"closing the gap" would look like and what each step buys.
+### Priority order depends on mode
 
-### Priority 1 — Risk management (biggest leverage, smallest cost)
+**We are currently in pure paper / forward-test mode** — no real
+capital is deployed. The priorities below reflect that. If/when
+real money is deployed, **risk management (currently P3) moves to
+P1 and becomes mandatory before any trade.** Today, building
+elaborate risk infrastructure for a hypothetical real-money future
+is exactly the kind of over-engineering this project tries to avoid.
+
+The priorities, ordered by leverage-per-effort *for the current
+paper-mode reality*:
+
+### Priority 1 — Spread / curve trading book (new for forward-test mode)
+
+*(Originally listed as P2; promoted to P1 in 2026-05-22 revision.
+The case is below in "Priority 2" still — see [Spread / curve trading
+section](#priority-2-spread--curve-trading) just below.)*
+
+In short: calendar spreads (WTI M1−M2, Brent M1−M2) have structurally
+lower vol, near-zero macro beta, and capture a focused physical-flow
+signal that's the natural fit for retail edge. We already store
+M1/M2/M3/M6 in `market_prices` and `term_structure_factor` already
+z-scores the spread — the bones exist. Building this adds a new
+forward-test signal source decorrelated from the existing flat-price
+book, which is more useful in paper mode than infrastructure for
+hypothetical real-money risk.
+
+### Priority 2 — Cross-asset overlay (was P3)
+
+*(Unchanged from original P3 — see [Cross-asset overlay section](#priority-3-cross-asset-overlay).)*
+DXY, S&P, 10y, copper as macro-regime filter. Cheap (free yfinance
+data), useful, fits the paper-mode "see what the model would have
+done" framing.
+
+### Priority 3 — Risk management (deferred until real capital)
+
+The arguments for vol-targeting, drawdown auto-flat, factor-exposure
+caps remain correct **for real money** — they reduce the path-volatility
+of any deployed strategy. But for paper trading, what they primarily
+affect is the realism of paper PnL — not the validity of the signal
+itself. Defer until there's a concrete plan to deploy capital, then
+build properly with the benefit of having watched the live signal
+behave for months. Original detailed writeup retained below
+([Risk management section](#priority-3-risk-management-was-p1-now-deferred)).
+
+### Priority 4 — Alternative data (unchanged)
+
+Paid feeds — ICE Brent COT, ARA, Singapore, Vortexa/Kpler. Only
+worth the ongoing cost if real capital is deployed. Same logic as
+risk management: defer until the real-money use case materializes.
+
+---
+
+### Detailed writeups (kept below for reference)
+
+The detailed writeups follow in their original P1-P4 numbering so
+existing links still work. Refer to the priority shuffle above for
+the current ordering.
+
+### Priority 1 — Risk management (was P1, now deferred)
 
 **Why:** Real-world P&L gets crushed by absent risk management more
 often than by weak signals. Right now sizing is just `composite > 0.1

@@ -14,6 +14,124 @@ as of the current state. When numbers move, update this file.
 
 ---
 
+## 0. Theoretical foundation
+
+The model rests on seven specific claims about how oil markets behave and
+how a small system can extract edge from them. Each claim drives a concrete
+design choice; together they form the *why* behind the architecture
+documented in sections 1-8.
+
+### 0.1 Multi-source aggregation beats any single source
+
+No single input — narrative, positioning, inventory, term structure — is
+reliable enough by itself to generate consistent edge. Each captures a
+different *aspect* of the market with different reliability and decay rate:
+
+| Input | What it captures | Information decay | Source noise |
+|---|---|---|---|
+| Narrative | Sentiment, event flow, consensus tilt | Hours to days | High (chatter / opinion) |
+| Term structure | Real-time physical tightness | Real-time | Low |
+| Positioning (COT) | Speculator crowdedness | Weekly | Low but stale |
+| Inventory | Physical balance vs. seasonal | Weekly (EIA) / monthly (JODI) | Low but lagged |
+
+**Design implication:** the system *must* be an ensemble. Single-factor
+strategies overfit to whichever regime the chosen factor happens to work in.
+Diversification across orthogonal inputs is the first edge source.
+
+### 0.2 Factor predictive value is regime-conditional
+
+The same factor often has *opposite* predictive value in different market
+regimes. E.g., extreme positioning crowding is a strong reversal signal
+in `stretched_*` regimes, but a momentum confirmation in clean trends. A
+tight inventory print is a high-conviction directional signal in `shock`
+regimes but background noise in `range`.
+
+**Design implication:** weights must adapt to regime. A single static
+weight vector across all market conditions averages out what should be
+case-by-case judgment. Hence `regime_factor_weights` keyed by
+primary_regime (see 8A.5).
+
+### 0.3 Contrarian fade at extremes, momentum follow in trends
+
+Speculator positioning is mean-reverting at extremes (CTAs and
+discretionary funds reload at the same time, pile into the same direction,
+then capitulate together). Inventory and term structure are largely
+fundamental — they move with physical reality, not sentiment. Narrative
+sits in between.
+
+**Design implication:** each factor's *sign convention* should match its
+behavior. Positioning is contrarian (sign-flipped, gated past ±1σ). Term
+structure is direct (backwardation = bullish). Inventory is direct (low
+stocks vs. seasonal = bullish). Mechanically encoded, not left to
+post-hoc judgment.
+
+### 0.4 Z-scoring is the right common scale
+
+Raw narrative scores, spread prices, COT net length, and inventory levels
+live on wildly different scales — you can't linearly combine them without
+normalization. Z-scoring against each factor's own recent history (typically
+30-90 days) puts everything on a "how unusual is today" scale where weights
+are dimensionally comparable.
+
+**Design implication:** every factor function returns roughly `[-2, +2]`.
+Composite weights then have intuitive meaning ("inventory weight of 0.30
+means a 1σ inventory move contributes 0.3 to the composite").
+
+### 0.5 Information has heterogeneous decay rates
+
+A breaking news event affects the narrative score within hours. A CFTC COT
+report is from last Tuesday but released Friday. An EIA inventory print is
+from a week ago. The model is asked to make a decision *today* using
+inputs of wildly different vintages.
+
+**Design implication:** we use the *latest available* reading as the
+current state of each factor — never extrapolate, never re-use stale
+data as if it were fresh. The reports/AI judgment flow separately tags
+data freshness so the human reader knows what's news vs. background.
+
+### 0.6 Per-symbol asymmetry — not all crudes are the same
+
+WTI and Brent are both crude, but they respond to different drivers. WTI
+is a domestic crude with a physical chokepoint at Cushing — sensitive to
+US inventory, US refinery runs, US shale economics. Brent is a waterborne
+benchmark for global trade — sensitive to Middle East geopolitics, ICE
+positioning, Asian refinery demand, freight rates. Our US-skewed data
+naturally favors WTI; Brent needs international data we don't have.
+
+**Design implication:** `regime_factor_weights` is keyed by **(symbol,
+regime)**, not just regime. Brent's `trend_up` weights are 60% narrative
+because that's where its remaining edge is; WTI's `trend_up` weights
+include heavier inventory and term structure because those signals
+genuinely lead WTI prices.
+
+### 0.7 Discipline beats cleverness
+
+The biggest source of failed quant strategies is not bad signals — it's
+overfitting to historical data, then deploying with no out-of-sample
+test. Once a strategy is locked, you have to be patient enough to let
+it run on truly new data before judging it. Re-tuning weights every time
+recent performance disappoints is just data-mining in slow motion.
+
+**Design implication:** locked strategy versions
+(`docs/strategy_versions.md` v1 lock at 2026-05-14), written acceptance
+criteria for each change, future walk-forward backtests (refit on years
+N to N+1, test on year N+2). Reduces the temptation to chase noise.
+
+### 0.8 What this theory does NOT claim
+
+- **It does not claim markets are inefficient in a way only we can see.**
+  All four factors we use are known to the industry. Edge comes from
+  *combining them with discipline*, not from secret data.
+- **It does not claim the model will work in all regimes.** Backtest
+  evidence shows clear regime dependence — composite earns its keep in
+  shock + trend regimes, marginal in range, weak on Brent.
+- **It does not claim signal quality alone produces returns.** Without
+  position sizing, risk management, and execution discipline, even a
+  high-hit-rate signal can lose money. The signal layer is necessary
+  but not sufficient.
+
+---
+
 ## 1. What this system does
 
 Aggregate text from many free sources (official agencies, sell-side reports,
