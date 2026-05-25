@@ -114,14 +114,52 @@ def _latest_close_on_or_before(symbol: str, asof: date, conn) -> float | None:
     return float(row[0]) if row and row[0] else None
 
 
+def _latest_settled_trading_day(conn) -> date | None:
+    """Most recent weekday (Mon-Fri) with a settled WTI close in market_prices.
+
+    Skips weekend rows that yfinance sometimes produces (Sunday-night reopen,
+    partial fills, etc.) so we never create a trade dated to a non-trading
+    day. Looks at the last 10 distinct dates to be safe.
+    """
+    rows = conn.execute(
+        "SELECT DISTINCT price_time FROM market_prices "
+        "WHERE symbol='WTI' AND close IS NOT NULL "
+        "ORDER BY price_time DESC LIMIT 10"
+    ).fetchall()
+    for (pt,) in rows:
+        try:
+            d = date.fromisoformat(pt[:10])
+        except ValueError:
+            continue
+        if d.weekday() < 5:  # 0-4 = Mon-Fri
+            return d
+    return None
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--date", default=None,
-                    help="Plan date (YYYY-MM-DD). Defaults to today.")
+                    help="Plan date (YYYY-MM-DD). Defaults to the most recent "
+                         "settled trading day (Mon-Fri) in market_prices.")
     args = ap.parse_args()
-    plan_date = date.fromisoformat(args.date) if args.date else date.today()
 
     conn = get_connection()
+    if args.date:
+        plan_date = date.fromisoformat(args.date)
+    else:
+        # Rule: trades can only be opened on settled trading days. Use the
+        # most recent weekday (Mon-Fri) for which we have a WTI close.
+        # Weekend / pre-settle cron runs hit dedup on the prior day's
+        # snapshot and exit cleanly without creating phantom trades.
+        plan_date = _latest_settled_trading_day(conn)
+        if plan_date is None:
+            print("[ERROR] No settled WTI close found in market_prices — cannot pick a plan_date.")
+            conn.close()
+            return
+        days_behind = (date.today() - plan_date).days
+        if days_behind > 3:
+            print(f"[WARN] Latest settled trading day is {plan_date} ({days_behind} days behind today). "
+                  f"Verify fetch_prices is running.")
     theme_scores = pd.read_sql(
         "SELECT score_date, theme, narrative_score FROM daily_theme_scores WHERE commodity='crude_oil'",
         conn,
