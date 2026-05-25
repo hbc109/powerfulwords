@@ -18,6 +18,9 @@ EIA_API_KEY=__SET_ME__
 # Composite backtest — nightly at 03:15 (after the 23:05/00:05/01:05/02:05 hourly ticks have settled latest data)
 15 3 * * * /usr/bin/python3 /home/hongbingchen/powerfulwords/scripts/run_composite_backtest.py >> /tmp/oil_pipeline.log 2>&1
 
+# Technical-only backtest — nightly at 03:20 (right after composite backtest)
+20 3 * * * /usr/bin/python3 /home/hongbingchen/powerfulwords/scripts/run_technical_backtest.py >> /tmp/oil_pipeline.log 2>&1
+
 # Paper trading snapshot — nightly at 07:00 (after WTI 17:00 ET = 05:00 UTC+8 settlement,
 # plus margin for the 06:05 hourly fetch_prices to publish the official daily close)
 0 7 * * * /usr/bin/python3 /home/hongbingchen/powerfulwords/scripts/snapshot_paper_trades.py >> /tmp/oil_pipeline.log 2>&1

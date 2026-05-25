@@ -354,9 +354,9 @@ c5.metric("Average Event Confidence", avg_conf)
 
 st.info(f"Main Sources: {main_sources}")
 
-tab_recs, tab_upload, tab_library, tab1, tab_trends, tab2, tab3, tab_multi, tab_composite_bt, tab_paper, tab_ai, tab_daily, tab_strategy, tab_method = st.tabs(
+tab_recs, tab_upload, tab_library, tab1, tab_trends, tab2, tab3, tab_multi, tab_composite_bt, tab_tech_bt, tab_paper, tab_ai, tab_daily, tab_strategy, tab_method = st.tabs(
     ["Signal", "Upload", "Library", "Overview", "Trends", "Research",
-     "Baseline Backtest", "Baseline Multi-book", "Composite Backtest", "Paper Trading", "AI Judgment", "Daily Report", "Strategy Notes", "Methodology"]
+     "Baseline Backtest", "Baseline Multi-book", "Composite Backtest", "Technical Backtest", "Paper Trading", "AI Judgment", "Daily Report", "Strategy Notes", "Methodology"]
 )
 
 def _book_history_score(book_cfg, theme_scores_df, score_date_str):
@@ -2159,6 +2159,58 @@ with tab_composite_bt:
                             f"turnover {tr.get('turnover', 0):.2f}  ·  "
                             f"transaction cost ${tr.get('transaction_cost', 0):.2f}"
                         )
+
+        st.divider()
+
+with tab_tech_bt:
+    st.subheader("Technical Backtest — pure indicator signal (regime tag + ADX trend filter + BB %B mean-revert)")
+    st.caption(
+        "Third comparator alongside Composite and Baseline. Uses ONLY technical "
+        "indicators (no narrative, no positioning, no inventory). Same close-to-close "
+        "/ 5bps PnL machinery — direct apples-to-apples vs the other two. Re-run "
+        "with `python scripts/run_technical_backtest.py`."
+    )
+    tb_dir = BASE_DIR / "data" / "processed" / "backtests"
+    for tb_sym in ["WTI", "Brent"]:
+        tb_path = tb_dir / f"technical_pnl_{tb_sym}.json"
+        st.markdown(f"### {tb_sym}")
+        if not tb_path.exists():
+            st.info(f"No technical backtest for {tb_sym}. Run "
+                    f"`python scripts/run_technical_backtest.py`.")
+            continue
+        tb_data = json.loads(tb_path.read_text())
+        tb_summary = tb_data.get("summary", {})
+        tb_regimes = tb_data.get("by_regime", {})
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Final Equity", f"${tb_summary.get('final_equity', 0):,.0f}",
+                  delta=f"{tb_summary.get('total_return', 0):+.1%} total return")
+        sh = tb_summary.get("annualized_sharpe")
+        c2.metric("Annualized Sharpe", f"{sh:.2f}" if sh is not None else "n/a")
+        dd = tb_summary.get("max_drawdown")
+        c3.metric("Max Drawdown", f"{dd:+.1%}" if dd is not None else "n/a")
+        c4.metric("Trades / Days", f"{tb_summary.get('num_trades', 0)} / {tb_summary.get('num_days', 0)}")
+
+        tb_eq = tb_data.get("equity_curve", [])
+        if tb_eq:
+            df = pd.DataFrame(tb_eq)
+            df["date"] = pd.to_datetime(df["date"])
+            df = df.sort_values("date")
+            st.line_chart(df.set_index("date")[["equity"]])
+
+        if tb_regimes:
+            st.markdown("**Per-regime contribution:**")
+            rows = []
+            for regime, agg in sorted(tb_regimes.items(), key=lambda kv: -(kv[1].get("pnl_sum") or 0)):
+                rows.append({
+                    "regime": regime,
+                    "trades": agg.get("n_trades"),
+                    "active days": agg.get("non_flat_days"),
+                    "pnl total ($)": agg.get("pnl_sum"),
+                    "pnl per active day ($)": agg.get("pnl_per_day"),
+                    "active-day hit rate": agg.get("day_hit_rate"),
+                })
+            st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
 
         st.divider()
 
