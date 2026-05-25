@@ -661,7 +661,80 @@ but stay in the same trade record.
 snapshot for the same day is a no-op. See `ops/crontab` for the
 reproducible install.
 
-### 8B.6 What this is and isn't
+### 8B.6 Vetoes — Tier-1, annotation-only
+
+Three filters evaluated for every new paper trade. Stored as
+`vetoes_json` on the trade row but **do not block the trade** —
+the snapshot still records it. The purpose is to test whether
+these vetoes actually pick worse trades by comparing hit rate of
+vetoed vs non-vetoed trades after enough data accumulates.
+
+**Why annotation-only first.** A veto is a hypothesis: *"trades
+meeting condition X have lower hit rate than the average."* Building
+it as a hard block before testing the hypothesis is just data-mining
+in slow motion. Annotate first, measure, then decide whether to
+make it blocking.
+
+#### The three vetoes
+
+| Veto | Fires when | What it catches |
+|---|---|---|
+| **magnitude** | `\|composite\| < 0.40` | Weak signal — trades on noise; aligns with retail_edge_thesis "only act on strong-conviction days" |
+| **cross_factor** | Any single factor has `\|z\| > 2.0` AGAINST the composite direction | "Good signal at bad moment" — e.g., LONG composite but positioning z = +2 means the crowd is already there |
+| **vol** | Regime `atr_ratio > 1.30` on the symbol's most-recent regime row | Signal-whipsaw risk in fast-moving regimes |
+
+**Vol veto note on metric semantics:** `atr_ratio` is today's 14-day
+ATR divided by the 60-day mean ATR — a *relative* metric. It measures
+"unusually high vol for this period", not absolute vol. After a shock
+period, today's 5% daily moves can still read as below-baseline vol
+because the baseline window includes the shock days. This is the
+right metric for *whipsaw risk*; the signal-to-noise ratio drops
+fastest when vol jumps above its own recent norm. An absolute-vol
+filter could be added later as a separate Tier-2 veto if needed.
+
+#### Where vetoes do NOT apply
+
+- **Composite calculation** — vetoes don't change the composite value
+- **Position sizing** — vetoes don't change `target_position`
+- **Close logic** — vetoes apply only to new entries, not to closes
+  (a position opened with no vetoes can still close when composite
+  reverses past the opposite entry threshold)
+- **Existing positions** — vetoes are evaluated at entry only, never
+  re-evaluated mid-trade
+
+#### Implementation
+
+`app/scoring/vetoes.py` exports `evaluate_vetoes(symbol, asof,
+composite, breakdown, conn)` returning a list of fired veto reason
+strings. Empty list = no vetoes. The snapshot script (outright +
+spread book) calls this for each symbol and passes the result to
+`record_snapshot`, which stores it as `vetoes_json` on the
+`paper_trades` row.
+
+The dashboard's Paper Trading tab renders fired vetoes as a yellow
+warning panel under each trade's reasoning line, so the human reader
+sees immediately when a trade was opened despite a veto signal.
+
+#### How to test whether a veto is actually useful
+
+After ~30+ trades have closed:
+
+1. Group closed trades by their `vetoes` field (no veto, magnitude
+   only, cross_factor only, vol only, multiple).
+2. Compute realized hit rate (% of trades with positive realized
+   PnL) for each group.
+3. **If vetoed trades have meaningfully lower hit rate** (>10pp gap
+   on a reasonable sample): promote that veto to blocking.
+4. **If vetoed and non-vetoed trades have similar hit rates**: the
+   veto isn't doing anything — drop it.
+5. **If vetoed trades have HIGHER hit rate** (rare): the veto is
+   anti-signal — remove it immediately.
+
+Tier 2+ vetoes (cross-asset, event-day, drawdown circuit breaker)
+are listed in `strategy_versions.md` roadmap. Deferred until the
+infrastructure they need exists.
+
+### 8B.7 What this is and isn't
 
 ✅ **Is**:
 - A truthful, ongoing scorecard of the model's signal vs. realized
