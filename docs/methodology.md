@@ -754,6 +754,112 @@ infrastructure they need exists.
 
 ---
 
+## 8C. Backtest comparator framework — three signals on one engine
+
+Three backtests run on the same close-to-close PnL machinery (entry
+threshold ±0.10, max 2x position, 5bps one-way cost) so they're
+directly apples-to-apples. They differ only in **what signal feeds
+the position sizer**:
+
+| Backtest | Signal source | What it tests |
+|---|---|---|
+| **Baseline** | Narrative-only weighted theme score | Pure fundamental / sentiment, no factor blending, no regime conditioning |
+| **Composite** | `composite_score()` — narrative + term_structure + positioning + inventory, regime-conditional per-symbol weights | The full system as documented in 8A |
+| **Technical** | `technical_signal()` — pure technical indicators (regime tag + ADX trend filter + BB %B mean-revert), no narrative, no fundamentals | Pure technical school, isolated |
+
+### 8C.1 Why three
+
+To validate that the composite's edge — to whatever extent it exists
+— is **not just rebranded technicals or rebranded narrative**. Without
+the technical comparator, "composite beats baseline" could mean two
+things:
+
+1. The factor blend (term_structure + positioning + inventory) is
+   adding edge over pure narrative.
+2. The regime conditioning (using technical indicators as the regime
+   switch) is doing the work, regardless of which factors are blended.
+
+Having all three lets us decompose: if **technical alone** is decent,
+then regime classification IS the source of edge. If **technical alone**
+is weak or destructive, then the factor blend is doing real work.
+
+### 8C.2 The technical signal
+
+`app/scoring/technical_signal.py` — simplest defensible mapping of
+the regime classifier's own output to a tradable signal:
+
+```
+trend_up      AND adx14 > 25     → +1.0  (LONG, trend-follow w/ strength filter)
+trend_down    AND adx14 > 25     → -1.0  (SHORT)
+stretched_up  AND bb_pctb > 1.0  → -0.5  (SHORT, mean-revert fade)
+stretched_down AND bb_pctb < 0   → +0.5  (LONG, mean-revert fade)
+shock / range / weak-ADX trend   →  0.0  (FLAT)
+```
+
+Returns `composite_score()`-shape output (total, breakdown, reasoning)
+so the backtest engine consumes it identically.
+
+ADX > 25 filter on trend regimes — don't trend-follow into a market
+where the regime classifier says "trending" but the trend isn't
+actually strong. BB %B threshold on stretched regimes — only fade
+the move if it's at the band extreme, not just leaning that way.
+
+### 8C.3 Empirical finding (first run, 3-year backtest 2023-05 → 2026-05)
+
+| Symbol / signal | Total return | Sharpe | Max DD |
+|---|---|---|---|
+| WTI composite | **+67.8%** | 0.64 | -35.5% |
+| WTI baseline (narrative-only) | ~flat | ~0.2 | -25% |
+| WTI **technical-only** | **−40.4%** | **−0.24** | **−51.6%** |
+| Brent composite | +3.1% | 0.21 | -46.4% |
+| Brent baseline | slightly positive | ~0.1 | -35% |
+| Brent **technical-only** | **−61.1%** | **−0.53** | **−67.2%** |
+
+The signal is clean: **pure technical destroys capital** on both
+symbols over the same window where the composite makes meaningful
+positive return on WTI. Per-regime breakdown shows trend-following
+gets killed in `trend_down` (the trend reverses), and mean-revert
+fades on `stretched_*` keep losing as the stretches go further.
+
+### 8C.4 What this tells us
+
+- **The composite's edge is not just regime classification.** If it
+  were, technical-only (which trades the regime tag directly) would
+  also be profitable. It's catastrophically not.
+- **The composite's edge is not just narrative.** Composite beats
+  narrative-only baseline by meaningful margin (+67pp on WTI vs ~0%).
+- **The factor blend (positioning, inventory, term_structure) on top
+  of narrative is what adds real edge.** Per the per-regime contribution
+  table on the Composite Backtest tab, those factors carry the
+  `range` and `shock` regime PnL where neither pure narrative nor
+  pure technical works.
+- **Pure trend-following is a bad model for oil over this period.**
+  Markets have been choppy enough that ADX-filtered trends still
+  reverse fast. Probably regime-specific; a longer backtest covering
+  a multi-year clear trend (e.g., 2014-2016 bear market) might show
+  technical-only doing better.
+
+### 8C.5 What we deliberately did NOT do for the technical comparator
+
+- **No factor blending.** No mixing of multiple indicators into a
+  composite z-score. The whole point of this comparator is the
+  *pure-school* test.
+- **No regime-conditional weights** within the technical book. Other
+  parts of the system condition on regime — for the technical
+  comparator we want the simplest defensible mapping, not a
+  multi-parameter tuning surface.
+- **No threshold optimization.** Same ±0.10 / ±0.40 thresholds as
+  the other two backtests, so the comparison is fair.
+
+This last point matters: it's tempting to "fix" the technical-only
+backtest by tweaking thresholds, regime priorities, or ADX cutoffs.
+That would just be data-mining toward whatever the historical period
+happened to favor. The technical comparator's job is to be honest
+about how pure technicals would have done with reasonable defaults
+— not to win a contest.
+
+---
+
 ## 9. Glossary
 
 - **Bucket** — Source category with a credibility weight. See section 3.
