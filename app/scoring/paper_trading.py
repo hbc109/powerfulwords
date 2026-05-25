@@ -46,12 +46,27 @@ CREATE INDEX IF NOT EXISTS idx_paper_trades_symbol_date ON paper_trades(symbol, 
 CREATE INDEX IF NOT EXISTS idx_paper_trades_open ON paper_trades(symbol, exit_date);
 """
 
+# Idempotent column adds for fields added after the original schema.
+_OPTIONAL_COLUMNS = [
+    ("vetoes_json", "TEXT"),    # JSON array of Tier-1 veto reason strings; annotation only
+]
+
+
+def _ensure_optional_columns(conn: sqlite3.Connection) -> None:
+    """ALTER TABLE ADD COLUMN for each post-schema column if missing. Idempotent."""
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(paper_trades)").fetchall()}
+    for col, decl in _OPTIONAL_COLUMNS:
+        if col not in cols:
+            conn.execute(f"ALTER TABLE paper_trades ADD COLUMN {col} {decl}")
+    conn.commit()
+
 
 def ensure_table(conn: Optional[sqlite3.Connection] = None) -> None:
     own = conn is None
     if own:
         conn = get_connection()
     conn.executescript(CREATE_SQL)
+    _ensure_optional_columns(conn)
     conn.commit()
     if own:
         conn.close()
@@ -126,6 +141,11 @@ def get_all_open_positions(symbol: Optional[str] = None,
                 r["breakdown"] = json.loads(r["breakdown_json"])
             except Exception:
                 r["breakdown"] = None
+        if r.get("vetoes_json"):
+            try:
+                r["vetoes"] = json.loads(r["vetoes_json"])
+            except Exception:
+                r["vetoes"] = None
     return rows
 
 
@@ -225,6 +245,7 @@ def record_snapshot(
     breakdown: Optional[list],
     entry_close: Optional[float],
     notes: Optional[str] = None,
+    vetoes: Optional[list] = None,
     *,
     conn: Optional[sqlite3.Connection] = None,
 ) -> dict:
@@ -265,13 +286,14 @@ def record_snapshot(
         """INSERT INTO paper_trades (
             plan_date, symbol, direction, target_position,
             composite_score, regime, narrative_z, term_structure, positioning, inventory,
-            breakdown_json, entry_close, reasoning, notes
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            breakdown_json, entry_close, reasoning, notes, vetoes_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             plan_date_iso, symbol, direction, target_position,
             composite_score, regime, narrative_z, term_structure, positioning, inventory,
             json.dumps(breakdown) if breakdown is not None else None,
             entry_close, reasoning, notes,
+            json.dumps(vetoes) if vetoes else None,
         ),
     )
     trade_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
@@ -307,4 +329,9 @@ def load_trades(symbol: Optional[str] = None, limit: Optional[int] = None,
                 r["breakdown"] = json.loads(r["breakdown_json"])
             except Exception:
                 r["breakdown"] = None
+        if r.get("vetoes_json"):
+            try:
+                r["vetoes"] = json.loads(r["vetoes_json"])
+            except Exception:
+                r["vetoes"] = None
     return rows

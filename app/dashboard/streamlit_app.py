@@ -2300,6 +2300,10 @@ script for the same day is a no-op (won't double-record).
                             f" · {mtm_emoji} **{mtm:+.2%} MTM**{age_days}")
                     with st.expander(head):
                         st.write(f"**Reasoning**: {t.get('reasoning', '—')}")
+                        vetoes_list = t.get("vetoes") or []
+                        if vetoes_list:
+                            st.warning("⚠ Vetoes at entry:\n" +
+                                       "\n".join(f"- {v}" for v in vetoes_list))
                         if t.get("notes"):
                             st.write(f"📝 Notes: {t['notes']}")
                         cT1, cT2, cT3 = st.columns(3)
@@ -2341,6 +2345,10 @@ script for the same day is a no-op (won't double-record).
                             f"{emoji} **{outcome}**{hold_str}")
                     with st.expander(head):
                         st.write(f"**Reasoning**: {tr.get('reasoning', '—')}")
+                        vetoes_list = tr.get("vetoes") or []
+                        if vetoes_list:
+                            st.warning("⚠ Vetoes at entry:\n" +
+                                       "\n".join(f"- {v}" for v in vetoes_list))
                         if tr.get("notes"):
                             st.write(f"📝 Notes: {tr['notes']}")
                         cT1, cT2, cT3 = st.columns(3)

@@ -33,6 +33,7 @@ from app.db.database import get_connection
 from app.scoring.composite import composite_score
 from app.scoring.factors import positioning_factor, inventory_factor, term_structure_factor
 from app.scoring.paper_trading import record_snapshot, evaluate_closes
+from app.scoring.vetoes import evaluate_vetoes
 from app.strategy.backtest_engine import score_to_target_position, aggregate_score_by_date
 
 
@@ -220,7 +221,10 @@ def main() -> None:
         if closed_ids:
             print(f"  {sym}: closed open positions {closed_ids} on reversal")
 
-        # 2) Then record today's snapshot if signal is active (LONG/SHORT past threshold).
+        # 2) Evaluate vetoes (annotation-only — does NOT block the trade).
+        vetoes = evaluate_vetoes(sym, plan_date, composite, breakdown, conn=conn)
+
+        # 3) Then record today's snapshot if signal is active (LONG/SHORT past threshold).
         result = record_snapshot(
             plan_date=plan_date,
             symbol=sym,
@@ -234,8 +238,12 @@ def main() -> None:
             inventory=inv,
             breakdown=breakdown,
             entry_close=latest_close,
+            vetoes=vetoes,
             conn=conn,
         )
+        if vetoes:
+            for v in vetoes:
+                print(f"    ⚠ veto fired: {v}")
         if result.get("skipped_dup"):
             msg = "DUPLICATE skipped (snapshot already exists for today)"
         elif result.get("skipped_flat"):
@@ -277,6 +285,9 @@ def main() -> None:
         #    breakdown = single-row pseudo-breakdown.
         breakdown = [{"factor": "term_structure", "value": ts_z, "weight": 1.0,
                       "contribution": ts_z}] if ts_z is not None else []
+        # Vetoes: vol veto matters most for spreads (high vol = whipsaw risk
+        # on already-low-vol asset). Magnitude veto uses the same thresholds.
+        spread_vetoes = evaluate_vetoes(spread_sym, plan_date, ts_z, breakdown, conn=conn)
         result = record_snapshot(
             plan_date=plan_date,
             symbol=spread_sym,
@@ -290,8 +301,12 @@ def main() -> None:
             inventory=None,
             breakdown=breakdown,
             entry_close=spread_close,
+            vetoes=spread_vetoes,
             conn=conn,
         )
+        if spread_vetoes:
+            for v in spread_vetoes:
+                print(f"    ⚠ veto fired: {v}")
         if result.get("skipped_dup"):
             msg = "DUPLICATE skipped"
         elif result.get("skipped_flat"):
