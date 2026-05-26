@@ -860,6 +860,112 @@ about how pure technicals would have done with reasonable defaults
 
 ---
 
+## 8D. LLM advisory overlay (does NOT touch trades)
+
+The system is rule-based at every stage that decides a trade
+(composite, regime, position sizing, vetoes, closes). On top of that,
+there's a separate LLM advisory layer for human-facing commentary.
+It runs in parallel to the rules and **never feeds back into trade
+decisions**. Three uses live here:
+
+| Use | Tab | When | Output |
+|---|---|---|---|
+| **AI Judgment** | AI Judgment | Daily or on-demand | Short review note flagging signal coherence, factor disagreement, tail risks |
+| **Intraday trade ideas** | Signal (expander) | On-demand any time | 2-3 specific trade ideas with rationale + risks |
+| **Daily news report (prose)** | Daily Report | Daily or on-demand | Chinese sell-side-style numbered prose report of headlines |
+
+### 8D.1 Why advisory, not autonomous
+
+Per section 0.7 (theoretical foundation), discipline > cleverness.
+A rule-based signal is **auditable** — same inputs, same outputs,
+reproducible forever. An autonomous LLM trading agent trades that
+auditability for adaptability and is far harder to ship safely.
+The advisory layer gives us the LLM's strengths (synthesis, language,
+qualitative reasoning) without sacrificing the system's auditability.
+
+### 8D.2 Paste-flow vs API
+
+Two access modes:
+
+- **API mode** — requires `ANTHROPIC_API_KEY`. A cron job (nightly
+  07:15 for AI Judgment) calls Claude programmatically. Used when
+  the user has an Anthropic API key (separate from claude.ai
+  subscription).
+- **Paste-flow mode** — the dashboard builds the exact prompt the
+  API mode would send and displays it in a copyable code block. User
+  pastes into claude.ai, gets a response, pastes back. Saved into
+  the same `ai_reviews` table the API would have used. **This is the
+  default for users on a claude.ai subscription** (which doesn't
+  expose an API).
+
+Both paths write the same shape of record; reviews are tagged with
+the model field so we can later filter (e.g.,
+`model = 'claude.ai-manual-adversarial'`).
+
+### 8D.3 AI Judgment context — what Claude actually sees
+
+Per section 0.5 (information has heterogeneous decay rates), the
+review prompt feeds **two signal snapshots side-by-side**:
+
+- **Live signal** — composite + factors computed at review time from
+  whatever data exists right now. Matches what the Signal tab shows.
+- **Morning paper-trade snapshot** — what the 07:00 cron locked into
+  `paper_trades`. May differ from live if narrative drifted intraday.
+
+Plus: top narrative themes (7-day rolling), recent high-credibility
+document titles (filtered to oil-relevant buckets), and last 8 closed
+paper trades for performance sanity. An explicit "intraday drift"
+warning highlights any symbol where |live − morning composite| ≥ 0.20.
+
+### 8D.4 Review modes — standard vs adversarial
+
+Two single-call modes, picked by the user before building the prompt:
+
+**Standard** (~150-200 words). Single conciliatory review note flagging
+factor disagreements, cross-symbol coherence, and tail risks. What you
+typically want for a daily glance.
+
+**Adversarial** (~450 words across three sections):
+
+1. **Bull case** — Claude argues, as a senior trader, for taking the
+   trade the model suggests. Cites specific factor readings.
+2. **Strongest bear counter** — Claude switches roles to skeptical PM
+   and attacks the bull case specifically. Surfaces what factor
+   disagreements, drift, or tail risks would invalidate it.
+3. **Judge's verdict** — Steps back, decides which case is more
+   grounded in the data, picks one (take / size down / skip).
+
+**Mechanism: why adversarial helps.** Single-pass review tends to
+commit to one frame early and rationalize from there. Forcing an
+explicit opposing role surfaces objections the single pass would
+have skipped, the judge step is the meta-reasoning that
+outperforms single-pass on hard calls. This is the cheapest variant
+of multi-agent debate — same Claude call, same context cost, ~3x
+output length but no extra paste burden.
+
+**Why not true multi-agent (separate calls for bull, bear, judge)?**
+At our scale and on a claude.ai-paste-only setup, the ergonomic
+cost (3 separate paste cycles per session) outweighs the marginal
+gain over single-call adversarial. Reserved as a future option if
+the single-call variant proves too conciliatory after extended use.
+
+### 8D.5 Limits
+
+What the advisory layer **cannot** do (calibrate expectations):
+
+- **No autonomous data fetching.** Claude only reasons over what the
+  prompt builder hands it. Title-list filtering means full article
+  bodies are NOT sent; a buried fact in a Goldman PDF won't reach
+  Claude unless the extractor surfaced it as a theme/event.
+- **No memory across calls.** Each review / trade-ideas / report
+  call is independent.
+- **No effect on trading.** The composite signal, vetoes, position
+  sizing, and closes ignore the advisory output entirely. The
+  advisory layer's value is to **the human reading the dashboard**,
+  not to the rules.
+
+---
+
 ## 9. Glossary
 
 - **Bucket** — Source category with a credibility weight. See section 3.
