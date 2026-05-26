@@ -65,6 +65,40 @@ sentences instead of padding. Do not invent facts or quote prices you
 haven't been shown."""
 
 
+ADVERSARIAL_SYSTEM_PROMPT = """You are simulating a structured debate
+between two analysts plus a judge, all in a SINGLE response. The point
+is to stress-test the day's signal through structured opposition rather
+than a single conciliatory take.
+
+Format your output in exactly THREE numbered sections, each ~150 words:
+
+== 1) BULL CASE ==
+You are a senior trader who WANTS to defend acting on the signal as the
+model suggests (whichever direction it points). Lay out the strongest
+case for taking this trade. Cite specific factor readings (narrative_z,
+term_structure z, inventory z, positioning z), regime context, and
+recent news from the context provided. Acknowledge minor weaknesses but
+argue the trade.
+
+== 2) STRONGEST BEAR COUNTER ==
+You are now a skeptical PM with veto authority. Attack the bull case
+specifically — not generalities. What factor disagreements, intraday
+drift, tail risks, or recent paper-trade misses make this signal worth
+fading or skipping? Be concrete about which numbers / events would
+invalidate the bull. If the live composite differs from the morning
+snapshot, weigh in.
+
+== 3) JUDGE'S VERDICT ==
+Step back. Which case is more grounded in the data provided? Your
+honest verdict: take the trade as the model says, size down, or skip?
+~50 words of reasoning. Don't dodge by saying "it depends" — pick.
+
+Hard rules: do not invent facts or numbers; only reason from what's in
+the context. Do not pad — if the bull case is genuinely weak, say so in
+section 1 instead of inflating it. No markdown bullets in the prose
+sections (numbered section headers are the only structure)."""
+
+
 _SIGNAL_THRESHOLD = 0.10
 _STRONG_THRESHOLD = 0.40
 
@@ -387,26 +421,33 @@ def generate_review(review_date: date, *, model: str = DEFAULT_MODEL) -> dict:
                 "review_text": None, "model": model, "context": ctx}
 
 
-def prepare_prompt(review_date: date) -> dict:
+def prepare_prompt(review_date: date, mode: str = "standard") -> dict:
     """Assemble the system + user prompt for `review_date` without calling
     any API. Used by the dashboard's paste-flow for claude.ai subscribers
     who don't have an API key.
 
-    Returns: {"system": str, "user": str, "context": dict, "ready": bool, "reason": Optional[str]}
+    `mode`:
+      - "standard": single-pass review note (~150-200 words)
+      - "adversarial": single-prompt bull-vs-bear debate + judge verdict
+        (~450 words across three sections). Cheap version of multi-agent
+        debate — same context cost as standard, ~3x output length.
+
+    Returns: {"system": str, "user": str, "context": dict, "ready": bool, "reason": Optional[str], "mode": str}
     """
+    sys_prompt = ADVERSARIAL_SYSTEM_PROMPT if mode == "adversarial" else SYSTEM_PROMPT
     conn = get_connection()
     ensure_table(conn)
     ctx = _gather_context(review_date, conn)
     conn.close()
     if not any(s.get("composite") is not None for s in ctx.get("signals_live", [])):
-        return {"system": SYSTEM_PROMPT, "user": "", "context": ctx,
-                "ready": False,
+        return {"system": sys_prompt, "user": "", "context": ctx,
+                "ready": False, "mode": mode,
                 "reason": f"No live composite for {review_date}. Missing regime row, or narrative_z "
                           f"requires at least 6 days of theme scores up to this date — verify the "
                           f"hourly pipeline ran for fetch_prices / compute_regimes / score_narratives."}
     user_prompt = _format_context_for_llm(ctx)
-    return {"system": SYSTEM_PROMPT, "user": user_prompt, "context": ctx,
-            "ready": True, "reason": None}
+    return {"system": sys_prompt, "user": user_prompt, "context": ctx,
+            "ready": True, "reason": None, "mode": mode}
 
 
 def save_review(review_date: date, model: str, context: dict, review_text: str) -> int:

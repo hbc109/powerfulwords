@@ -2468,7 +2468,7 @@ with tab_ai:
 - You can backfill: pick an older date, build the prompt, generate, save. As long as a paper-trade snapshot exists for that date, this works.
 """)
 
-        mc1, mc2 = st.columns([1, 3])
+        mc1, mc2, mc3 = st.columns([1, 1, 2])
         with mc1:
             paste_review_date = st.date_input(
                 "Review date",
@@ -2478,8 +2478,24 @@ with tab_ai:
                 key="paste_review_date",
             )
         with mc2:
+            review_mode = st.radio(
+                "Mode",
+                options=["standard", "adversarial"],
+                index=0,
+                key="paste_review_mode",
+                help=(
+                    "**standard** — single ~150-word review note.\n\n"
+                    "**adversarial** — single-prompt bull-vs-bear debate + judge verdict "
+                    "(~450 words across 3 sections). Same paste cost as standard; "
+                    "forces Claude to argue both sides before committing to a view, "
+                    "catches reasoning errors a conciliatory single-pass misses."
+                ),
+            )
+        with mc3:
             if st.button("📋 Build prompt for this date", key="build_prompt_btn"):
-                st.session_state["_paste_prompt_payload"] = prepare_prompt(paste_review_date)
+                st.session_state["_paste_prompt_payload"] = prepare_prompt(
+                    paste_review_date, mode=review_mode
+                )
 
         payload = st.session_state.get("_paste_prompt_payload")
         if payload and not payload.get("ready"):
@@ -2497,14 +2513,15 @@ with tab_ai:
             st.code(payload["system"], language="text")
             st.markdown("**User prompt** (paste as your message to claude.ai):")
             st.code(payload["user"], language="text")
-            st.caption(
-                "Claude.ai will write a 150-200 word review. Paste it back in the box "
-                "below and save."
-            )
+            mode = payload.get("mode", "standard")
+            expected = ("Claude.ai will write a 150-200 word review."
+                        if mode == "standard" else
+                        "Claude.ai will produce a ~450-word debate: bull case → bear counter → judge verdict.")
+            st.caption(f"{expected} Paste it back in the box below and save.")
 
             pasted = st.text_area(
                 "Paste Claude's response here",
-                height=200,
+                height=200 if mode == "standard" else 320,
                 key="paste_review_response_input",
                 placeholder="Paste Claude.ai's review text...",
             )
@@ -2513,7 +2530,7 @@ with tab_ai:
                          disabled=save_disabled, key="save_pasted_review_btn"):
                 rid = save_review(
                     paste_review_date,
-                    model="claude.ai-manual",
+                    model=f"claude.ai-manual-{mode}",
                     context=payload["context"],
                     review_text=pasted.strip(),
                 )
