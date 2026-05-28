@@ -324,6 +324,24 @@ baseline to genuinely additive (+1-3pp). Would also enable physical-
 flow trading patterns (storage arbitrage, freight-driven plays).
 Only worth it if you commit serious capital to the model.
 
+### Parked factor candidates (revisit on data/capital trigger)
+
+Factors that are conceptually worth adding but blocked on either
+reliable free data or on real-money justification:
+
+- **Crude option skew (25-delta put IV − 25-delta call IV)** —
+  Genuinely orthogonal to current factors; captures forward-looking
+  tail-risk pricing the others miss. Academic evidence in Bates jump
+  factor / BIS commodity vol literature suggests some predictive
+  value. **Blocked on data**: CME options aren't free at the
+  bid/ask level; yfinance option chains for CL=F are spotty;
+  CBOE OVX tracks realized vol, not skew. Revisit when (a) a
+  reliable free skew source appears, or (b) real capital justifies
+  a paid CME/Bloomberg feed. Also some risk of co-linearity with
+  positioning (both reflect sentiment) — would need a quick A/B
+  test on hit-rate to confirm orthogonal contribution before
+  committing.
+
 ### What we deliberately won't build
 
 Some "complete trading system" features are appropriate for an
