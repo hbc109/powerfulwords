@@ -17,6 +17,14 @@ sources:
   cost_level: free
   credibility_tier: 1
   notes: U.S. Weekly Petroleum Status Report. Authoritative inventory data.
+- source_id: inventory_manual_upload
+  source_name: Inventory Reports Manual Upload
+  source_bucket: official_data
+  access_mode: manual_upload
+  cost_level: free
+  credibility_tier: 1
+  notes: Manual upload channel for inventory data (EIA weekly excerpts, ARA stocks,
+    Singapore EnterpriseSG, Fujairah FOIZ, JODI excerpts, broker inventory commentary, etc.).
 - source_id: eia_steo
   source_name: EIA
   source_bucket: official_reports
