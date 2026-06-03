@@ -69,6 +69,25 @@ def _latest_two(conn: sqlite3.Connection, symbol: str, asof: date) -> list:
     return rows
 
 
+def _latest_two_settled(conn: sqlite3.Connection, symbol: str, asof: date) -> list:
+    """Like _latest_two but excludes today's in-progress bar.
+
+    yfinance's daily candle for CL=F / BZ=F closes at the exchange's
+    settlement (14:30 ET / 19:30 London), so the daily Close field IS
+    the official settlement once the session is over. The only case
+    where it differs is when the bar's date equals today and the
+    session hasn't settled yet — that bar is intraday/partial.
+    Filtering price_time < today guarantees the displayed price is
+    always the official settlement of the last completed session.
+    """
+    rows = conn.execute(
+        "SELECT price_time, close FROM market_prices WHERE symbol=? AND price_time<? "
+        "AND close IS NOT NULL ORDER BY price_time DESC LIMIT 2",
+        (symbol, asof.isoformat()),
+    ).fetchall()
+    return rows
+
+
 def _gather(asof: date) -> dict:
     conn = get_connection()
     ctx: dict = {"asof": asof.isoformat(), "inventory": [], "prices": [], "docs": []}
@@ -100,19 +119,38 @@ def _gather(asof: date) -> dict:
                                  "level_kbbl": latest_v, "change_kbbl": chg,
                                  "days_old": days_old})
 
-    for sym, label in [("WTI", "WTI 主力"), ("Brent", "布伦特主力")]:
-        rows = _latest_two(conn, sym, asof)
+    # Front-month settlement prices. _latest_two_settled excludes any
+    # bar whose date equals today, so we never display an intraday
+    # partial bar — the price shown is always the official daily
+    # settlement of the most recent completed session (NYMEX CL for
+    # WTI, ICE B for Brent, both via yfinance's settled daily close).
+    # An EIA cross-check spot price for the same date is appended
+    # inline when available — flags any divergence > $1.00.
+    for sym, label, eia_sym, eia_label in [
+        ("WTI",   "WTI 主力 (NYMEX 结算价)",   "WTI_EIA_SPOT",   "EIA Cushing 现货"),
+        ("Brent", "布伦特主力 (ICE 结算价)",   "BRENT_EIA_SPOT", "EIA Brent Europe 现货"),
+    ]:
+        rows = _latest_two_settled(conn, sym, asof)
         if not rows:
             continue
         latest_d, latest_v = rows[0]
         chg = (latest_v - rows[1][1]) if (len(rows) > 1 and rows[1][1] is not None) else None
         pct = (chg / rows[1][1] * 100) if (chg is not None and rows[1][1]) else None
+        cross = conn.execute(
+            "SELECT close FROM market_prices WHERE symbol=? AND price_time=? AND close IS NOT NULL",
+            (eia_sym, latest_d),
+        ).fetchone()
+        cross_note = None
+        if cross and cross[0] is not None:
+            diff = latest_v - float(cross[0])
+            cross_note = {"label": eia_label, "value": float(cross[0]), "diff": diff}
         ctx["prices"].append({"label": label, "date": latest_d[:10],
-                              "close": latest_v, "change": chg, "pct_change": pct})
+                              "close": latest_v, "change": chg, "pct_change": pct,
+                              "cross": cross_note})
 
     for sym, label in [("WTI", "WTI"), ("Brent", "布伦特")]:
-        m1 = _latest_two(conn, f"{sym}_M1", asof)
-        m2 = _latest_two(conn, f"{sym}_M2", asof)
+        m1 = _latest_two_settled(conn, f"{sym}_M1", asof)
+        m2 = _latest_two_settled(conn, f"{sym}_M2", asof)
         if m1 and m2:
             spread = m1[0][1] - m2[0][1]
             ctx["prices"].append({"label": f"{label} M1-M2 价差", "date": m1[0][0][:10],
@@ -187,7 +225,16 @@ def _format_user_prompt(ctx: dict) -> str:
             chg_str = ""
             if chg is not None and pct is not None:
                 chg_str = f"  环比 {'+' if chg >= 0 else ''}${chg:.2f} ({'+' if pct >= 0 else ''}{pct:.2f}%)"
-            L.append(f"- {r['label']} ({r['date']}): ${r['close']:.2f}{chg_str}")
+            cross = r.get("cross")
+            cross_str = ""
+            if cross is not None:
+                d = cross.get("diff")
+                d_tag = ""
+                if d is not None:
+                    if abs(d) > 1.0:
+                        d_tag = f"  ⚠ 与结算价偏差 {'+' if d >= 0 else ''}${d:.2f}"
+                cross_str = (f"  [{cross['label']} 同日 ${cross['value']:.2f}{d_tag}]")
+            L.append(f"- {r['label']} ({r['date']}): ${r['close']:.2f}{chg_str}{cross_str}")
     L.append("")
 
     L.append("【今日新闻与分析师文章 (排名依据: 高质量来源 + 多个抽取事件 + 内容深度, 上限18条)】")
@@ -227,3 +274,57 @@ def save_llm_report(asof: date, text: str) -> Path:
 def load_llm_report(asof: date) -> Optional[str]:
     p = llm_report_path(asof)
     return p.read_text(encoding="utf-8") if p.exists() else None
+
+
+DEFAULT_API_MODEL = "claude-sonnet-4-6"
+
+
+def generate_daily_report_via_api(
+    asof: date,
+    *,
+    model: str = DEFAULT_API_MODEL,
+    max_tokens: int = 2200,
+) -> dict:
+    """Call the Anthropic SDK to generate the prose daily report directly.
+
+    Same prompt the paste-flow uses — just routes through the API for
+    users who prefer not to copy/paste. Returns:
+      {"status": "ok"|"skipped"|"error", "text": str|None,
+       "model": str, "reason": str|None}
+    """
+    import os as _os
+    if not _os.environ.get("ANTHROPIC_API_KEY"):
+        return {"status": "skipped", "reason": "ANTHROPIC_API_KEY not set",
+                "text": None, "model": model}
+
+    payload = prepare_daily_report_prompt(asof)
+    if not payload.get("ready"):
+        return {"status": "skipped", "reason": payload.get("reason"),
+                "text": None, "model": model}
+
+    try:
+        import anthropic
+    except ImportError:
+        return {"status": "error", "reason": "anthropic SDK not installed",
+                "text": None, "model": model}
+
+    try:
+        client = anthropic.Anthropic(timeout=90)
+        resp = client.messages.create(
+            model=model,
+            max_tokens=max_tokens,
+            temperature=0.3,
+            system=payload["system"],
+            messages=[{"role": "user", "content": payload["user"]}],
+        )
+        text = "".join(
+            getattr(b, "text", "") for b in resp.content
+            if getattr(b, "type", None) == "text"
+        ).strip()
+        if not text:
+            return {"status": "error", "reason": "empty response",
+                    "text": None, "model": model}
+        return {"status": "ok", "reason": None, "text": text, "model": model}
+    except Exception as e:
+        return {"status": "error", "reason": f"{type(e).__name__}: {e}",
+                "text": None, "model": model}

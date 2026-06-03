@@ -56,3 +56,4 @@ data/processed/digests/*
 # Environment
 .env
 .env.local
+data/oil.sqlite

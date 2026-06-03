@@ -2596,6 +2596,7 @@ with tab_daily:
 
     from app.scoring.daily_report import (
         prepare_daily_report_prompt, save_llm_report, load_llm_report, llm_report_path,
+        generate_daily_report_via_api, DEFAULT_API_MODEL,
     )
 
     digest_dir = BASE_DIR / "data" / "processed" / "digests"
@@ -2655,8 +2656,40 @@ with tab_daily:
 """)
 
         rp_date = date.fromisoformat(picked_str) if picked_str else date.today()
-        if st.button("📋 Build prose-report prompt", key="build_dr_prompt_btn"):
-            st.session_state["_dr_prompt_payload"] = prepare_daily_report_prompt(rp_date)
+        bcol1, bcol2 = st.columns(2)
+        with bcol1:
+            if st.button("📋 Build prompt for paste-flow", key="build_dr_prompt_btn",
+                         use_container_width=True):
+                st.session_state["_dr_prompt_payload"] = prepare_daily_report_prompt(rp_date)
+                st.session_state.pop("_dr_api_preview", None)
+        with bcol2:
+            api_disabled = not bool(os.environ.get("ANTHROPIC_API_KEY"))
+            api_help = ("Calls the Anthropic API with the same prompt — same output, no copy-paste. "
+                        + ("Requires ANTHROPIC_API_KEY env var." if api_disabled
+                           else f"Model: {DEFAULT_API_MODEL}. ~2s, costs a few cents per run."))
+            if st.button("🤖 Generate via Anthropic API", key="api_dr_btn",
+                         disabled=api_disabled, help=api_help,
+                         use_container_width=True):
+                with st.spinner(f"Calling {DEFAULT_API_MODEL}..."):
+                    result = generate_daily_report_via_api(rp_date)
+                st.session_state["_dr_api_preview"] = result
+                st.session_state.pop("_dr_prompt_payload", None)
+
+        api_preview = st.session_state.get("_dr_api_preview")
+        if api_preview:
+            if api_preview["status"] == "ok":
+                st.success(f"Generated via {api_preview['model']} — preview below. Click save to commit.")
+                st.markdown(api_preview["text"])
+                if st.button("💾 Save this as the prose report", type="primary",
+                             key="save_api_preview_btn"):
+                    p = save_llm_report(rp_date, api_preview["text"])
+                    st.success(f"Saved to {p.relative_to(BASE_DIR)}")
+                    st.session_state.pop("_dr_api_preview", None)
+                    st.rerun()
+            elif api_preview["status"] == "skipped":
+                st.warning(f"Skipped: {api_preview['reason']}")
+            else:
+                st.error(f"API error: {api_preview['reason']}")
 
         dr_payload = st.session_state.get("_dr_prompt_payload")
         if dr_payload and not dr_payload.get("ready"):

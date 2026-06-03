@@ -21,6 +21,7 @@ from app.fetchers.yfinance_prices import fetch_prices
 from app.fetchers.term_structure import fetch_term_structure
 from app.fetchers.cot_positioning import fetch_cot_positioning
 from app.fetchers.eia_inventory import fetch_eia_inventory
+from app.fetchers.eia_futures_settlement import fetch_eia_futures_settlement
 from app.fetchers.jodi_inventory import fetch_jodi_inventory
 
 
@@ -54,6 +55,7 @@ def main() -> None:
     rows += fetch_term_structure(period=args.period, interval=args.interval)
     rows += fetch_cot_positioning()
     rows += fetch_eia_inventory()
+    rows += fetch_eia_futures_settlement()
     rows += fetch_jodi_inventory()
     if not rows:
         print("No price rows returned. Yahoo may be rate-limiting; try again in a few minutes.")
