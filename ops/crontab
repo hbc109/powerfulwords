@@ -12,8 +12,12 @@ EIA_API_KEY=__SET_ME__
 # Weekly event-study rerun — Sundays 02:30
 30 2 * * 0 /usr/bin/python3 /home/hongbingchen/powerfulwords/scripts/run_event_study_weekly.py >> /tmp/oil_pipeline.log 2>&1
 
-# Oil narrative pipeline — register, fetch, prices, regimes, ingest, extract, score, hypotheses, hourly at :05
-5 * * * * /usr/bin/python3 /home/hongbingchen/powerfulwords/scripts/init_sources.py >> /tmp/oil_pipeline.log 2>&1 && /usr/bin/python3 /home/hongbingchen/powerfulwords/scripts/fetch_sources.py >> /tmp/oil_pipeline.log 2>&1 && /usr/bin/python3 /home/hongbingchen/powerfulwords/scripts/fetch_prices.py --period 1mo >> /tmp/oil_pipeline.log 2>&1 && /usr/bin/python3 /home/hongbingchen/powerfulwords/scripts/compute_regimes.py >> /tmp/oil_pipeline.log 2>&1 && /usr/bin/python3 /home/hongbingchen/powerfulwords/scripts/ingest_folder.py >> /tmp/oil_pipeline.log 2>&1 && /usr/bin/python3 /home/hongbingchen/powerfulwords/scripts/extract_narratives.py >> /tmp/oil_pipeline.log 2>&1 && /usr/bin/python3 /home/hongbingchen/powerfulwords/scripts/score_narratives.py >> /tmp/oil_pipeline.log 2>&1 && /usr/bin/python3 /home/hongbingchen/powerfulwords/scripts/test_strategy_hypotheses.py >> /tmp/oil_pipeline.log 2>&1
+# Oil narrative pipeline — hourly at :05. Wrapped in flock so that if a
+# prior hour's extract_narratives is still running (large upload batches
+# can take >60min), the new hour exits silently instead of clobbering
+# the DB. Skipped hours catch up naturally — fetchers pull a 14d rolling
+# window and the ingester is checksum-deduped.
+5 * * * * flock -n /tmp/oil_pipeline.lock /home/hongbingchen/powerfulwords/scripts/hourly_pipeline.sh >> /tmp/oil_pipeline.log 2>&1
 
 # Composite backtest — nightly at 03:15 (after the 23:05/00:05/01:05/02:05 hourly ticks have settled latest data)
 15 3 * * * /usr/bin/python3 /home/hongbingchen/powerfulwords/scripts/run_composite_backtest.py >> /tmp/oil_pipeline.log 2>&1
