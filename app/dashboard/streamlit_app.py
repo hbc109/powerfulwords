@@ -971,10 +971,12 @@ with tab_upload:
                 # the dashboard. Logs append to /tmp/upload_pipeline.log so we
                 # can surface a tail if the user wants to debug.
                 log_path = Path("/tmp/upload_pipeline.log")
+                # Blocking flock on the same lock the hourly cron uses, so
+                # the upload pipeline serializes with cron writes instead of
+                # racing on the SQLite write lock. See scripts/upload_pipeline.sh.
                 cmd = (
-                    f"{sys.executable} scripts/ingest_folder.py >> {log_path} 2>&1 && "
-                    f"{sys.executable} scripts/extract_narratives.py --mode auto >> {log_path} 2>&1 && "
-                    f"{sys.executable} scripts/score_narratives.py >> {log_path} 2>&1"
+                    f"flock /tmp/oil_pipeline.lock "
+                    f"{BASE_DIR}/scripts/upload_pipeline.sh >> {log_path} 2>&1"
                 )
                 subprocess.Popen(
                     cmd, shell=True, cwd=str(BASE_DIR),
@@ -1057,10 +1059,12 @@ with tab_upload:
 
             if run_pipeline:
                 log_path = Path("/tmp/upload_pipeline.log")
+                # Blocking flock on the same lock the hourly cron uses, so
+                # the upload pipeline serializes with cron writes instead of
+                # racing on the SQLite write lock. See scripts/upload_pipeline.sh.
                 cmd = (
-                    f"{sys.executable} scripts/ingest_folder.py >> {log_path} 2>&1 && "
-                    f"{sys.executable} scripts/extract_narratives.py --mode auto >> {log_path} 2>&1 && "
-                    f"{sys.executable} scripts/score_narratives.py >> {log_path} 2>&1"
+                    f"flock /tmp/oil_pipeline.lock "
+                    f"{BASE_DIR}/scripts/upload_pipeline.sh >> {log_path} 2>&1"
                 )
                 subprocess.Popen(
                     cmd, shell=True, cwd=str(BASE_DIR),
@@ -1092,9 +1096,8 @@ with tab_upload:
     if run_now:
         log_path = Path("/tmp/upload_pipeline.log")
         cmd = (
-            f"{sys.executable} scripts/ingest_folder.py >> {log_path} 2>&1 && "
-            f"{sys.executable} scripts/extract_narratives.py --mode auto >> {log_path} 2>&1 && "
-            f"{sys.executable} scripts/score_narratives.py >> {log_path} 2>&1"
+            f"flock /tmp/oil_pipeline.lock "
+            f"{BASE_DIR}/scripts/upload_pipeline.sh >> {log_path} 2>&1"
         )
         subprocess.Popen(
             cmd, shell=True, cwd=str(BASE_DIR),

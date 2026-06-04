@@ -6,7 +6,14 @@ DB_PATH = BASE_DIR / "data" / "oil_narrative.db"
 INIT_SQL_PATH = BASE_DIR / "sql" / "init.sql"
 
 def get_connection() -> sqlite3.Connection:
-    return sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=60.0)
+    # busy_timeout > Python-level timeout is belt-and-suspenders: the dashboard
+    # upload pipeline holds a write lock for minutes while extract_narratives
+    # batches rows, and the hourly cron's init_sources.py used to fail
+    # immediately on "database is locked" with the SQLite default 0-timeout.
+    # 60s window lets the loser wait for the winner's commit instead of dying.
+    conn.execute("PRAGMA busy_timeout=60000;")
+    return conn
 
 def init_db() -> None:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
