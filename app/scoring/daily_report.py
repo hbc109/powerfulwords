@@ -70,20 +70,28 @@ def _latest_two(conn: sqlite3.Connection, symbol: str, asof: date) -> list:
 
 
 def _latest_two_settled(conn: sqlite3.Connection, symbol: str, asof: date) -> list:
-    """Like _latest_two but excludes today's in-progress bar.
+    """Settled-bars version of _latest_two — two filters:
 
-    yfinance's daily candle for CL=F / BZ=F closes at the exchange's
-    settlement (14:30 ET / 19:30 London), so the daily Close field IS
-    the official settlement once the session is over. The only case
-    where it differs is when the bar's date equals today and the
-    session hasn't settled yet — that bar is intraday/partial.
-    Filtering price_time < today guarantees the displayed price is
-    always the official settlement of the last completed session.
+      1. price_time <= asof — respect the report's effective date so
+         a "report for 6/3" doesn't show 6/4's bar.
+      2. price_time < today (wall-clock) — exclude today's in-progress
+         bar, which during the session is intraday/partial. yfinance's
+         daily Close on a *past* trade-day IS the official exchange
+         settlement (Yahoo aligns the daily candle close to NYMEX /
+         ICE settle once the session has closed), so for any past
+         date the close field is settle-grade.
+
+    Combined: when asof == today, we show the most recent settled
+    bar (= yesterday). When asof < today, we show asof's own bar
+    (the trade-day's settle). This is what the user expects: "the
+    report dated 6/3 cites 6/3's settle".
     """
+    today = date.today()
     rows = conn.execute(
-        "SELECT price_time, close FROM market_prices WHERE symbol=? AND price_time<? "
+        "SELECT price_time, close FROM market_prices WHERE symbol=? "
+        "AND price_time<=? AND price_time<? "
         "AND close IS NOT NULL ORDER BY price_time DESC LIMIT 2",
-        (symbol, asof.isoformat()),
+        (symbol, asof.isoformat(), today.isoformat()),
     ).fetchall()
     return rows
 
