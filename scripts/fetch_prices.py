@@ -23,6 +23,7 @@ from app.fetchers.cot_positioning import fetch_cot_positioning
 from app.fetchers.eia_inventory import fetch_eia_inventory
 from app.fetchers.eia_futures_settlement import fetch_eia_futures_settlement
 from app.fetchers.jodi_inventory import fetch_jodi_inventory
+from app.fetchers.broker_settle import fetch_broker_settle
 
 
 def upsert_prices(conn, rows: list[dict]) -> int:
@@ -62,6 +63,13 @@ def main() -> None:
         return
     conn = get_connection()
     n = upsert_prices(conn, rows)
+    # Broker-settle parser reads from the documents table, so it must run
+    # after the connection is open. Adds WTI_BROKER_SETTLE / BRENT_BROKER_SETTLE
+    # rows for any trade-date cited in a 港联 or Macquarie morning brief.
+    broker_rows = fetch_broker_settle(conn)
+    if broker_rows:
+        n += upsert_prices(conn, broker_rows)
+        rows += broker_rows
     conn.close()
 
     by_sym = {}

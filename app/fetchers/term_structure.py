@@ -60,7 +60,17 @@ def fetch_term_structure(
             continue
         front = front_month_index(commodity, asof)
         for m in months:
-            ysym = yahoo_ticker(commodity, front + (m - 1))
+            # M1 uses the continuous front-month ticker (CL=F / BZ=F) — same
+            # source the daily report uses for the headline settlement, so the
+            # M1-M2 spread is anchored to the *broker-cited* settle. The
+            # explicit-month NYMEX codes (CLN26.NYM, BZQ26.NYM, ...) are thinly
+            # traded on Yahoo and frequently lag the real ICE/CME settle by
+            # $0.50-$1.50, which would corrupt the spread. M2+ legitimately
+            # need explicit-month codes (no continuous "M2" series exists).
+            if m == 1:
+                ysym = {"WTI": "CL=F", "Brent": "BZ=F"}[commodity]
+            else:
+                ysym = yahoo_ticker(commodity, front + (m - 1))
             sym = f"{commodity}_M{m}"
             ticker = yf.Ticker(ysym)
             hist = ticker.history(period=period, interval=interval, auto_adjust=False)

@@ -127,18 +127,28 @@ def _gather(asof: date) -> dict:
                                  "level_kbbl": latest_v, "change_kbbl": chg,
                                  "days_old": days_old})
 
-    # Front-month settlement prices. _latest_two_settled excludes any
-    # bar whose date equals today, so we never display an intraday
-    # partial bar — the price shown is always the official daily
-    # settlement of the most recent completed session (NYMEX CL for
-    # WTI, ICE B for Brent, both via yfinance's settled daily close).
-    # An EIA cross-check spot price for the same date is appended
-    # inline when available — flags any divergence > $1.00.
-    for sym, label, eia_sym, eia_label in [
-        ("WTI",   "WTI 主力 (NYMEX 结算价)",   "WTI_EIA_SPOT",   "EIA Cushing 现货"),
-        ("Brent", "布伦特主力 (ICE 结算价)",   "BRENT_EIA_SPOT", "EIA Brent Europe 现货"),
+    # Front-month settlement prices. For each commodity we look in two
+    # places, in order of preference:
+    #   1. {sym}_BROKER_SETTLE — value parsed from a 港联 / Macquarie
+    #      morning brief. This is the official ICE / NYMEX pit-settle
+    #      that broker statements cite, populated by app.fetchers.
+    #      broker_settle. Trusted as authoritative.
+    #   2. {sym} — yfinance CL=F / BZ=F daily close. Reliable on T-2 and
+    #      older, but the most recent day can lag by $1-$2 on Yahoo
+    #      because the daily Close is end-of-Globex, not the pit-window
+    #      settle. Falls back to this when no broker doc has been
+    #      uploaded yet for the date.
+    # _latest_two_settled excludes today's in-progress bar in both cases.
+    # EIA spot cross-check is appended inline when available.
+    for sym, label_base, eia_sym, eia_label in [
+        ("WTI",   "WTI 主力",   "WTI_EIA_SPOT",   "EIA Cushing 现货"),
+        ("Brent", "布伦特主力", "BRENT_EIA_SPOT", "EIA Brent Europe 现货"),
     ]:
-        rows = _latest_two_settled(conn, sym, asof)
+        rows = _latest_two_settled(conn, f"{sym}_BROKER_SETTLE", asof)
+        source_label = "港联/Macquarie 报价"
+        if not rows:
+            rows = _latest_two_settled(conn, sym, asof)
+            source_label = "Yahoo 收盘"
         if not rows:
             continue
         latest_d, latest_v = rows[0]
@@ -152,7 +162,8 @@ def _gather(asof: date) -> dict:
         if cross and cross[0] is not None:
             diff = latest_v - float(cross[0])
             cross_note = {"label": eia_label, "value": float(cross[0]), "diff": diff}
-        ctx["prices"].append({"label": label, "date": latest_d[:10],
+        ctx["prices"].append({"label": f"{label_base} ({source_label})",
+                              "date": latest_d[:10],
                               "close": latest_v, "change": chg, "pct_change": pct,
                               "cross": cross_note})
 
