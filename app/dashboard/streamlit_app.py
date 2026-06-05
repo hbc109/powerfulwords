@@ -2615,11 +2615,19 @@ with tab_daily:
 
     dc1, dc2 = st.columns([2, 1])
     with dc1:
+        # Auto-roll to the latest date unless the user has explicitly chosen
+        # an older one in this session. Without this, st.selectbox honors
+        # the persisted session_state value (e.g. yesterday's date) over
+        # index=0, so the picker can lag a day behind the data.
+        if not st.session_state.get("_dr_user_picked"):
+            st.session_state["daily_report_pick"] = available_dates[0]
+        elif st.session_state.get("daily_report_pick") not in available_dates:
+            st.session_state["daily_report_pick"] = available_dates[0]
         picked_str = st.selectbox(
             "Report date",
             available_dates,
-            index=0,
             key="daily_report_pick",
+            on_change=lambda: st.session_state.__setitem__("_dr_user_picked", True),
         )
     with dc2:
         if st.button("🔄 Rebuild raw report for today", key="rebuild_daily_btn"):

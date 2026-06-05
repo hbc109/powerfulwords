@@ -14,17 +14,10 @@ from datetime import date
 from pathlib import Path
 from typing import Optional
 
-from datetime import timedelta as _timedelta
-
 from app.db.database import get_connection
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 OUT_DIR = BASE_DIR / "data" / "processed" / "digests"
-
-# Skip inventory rows older than this in the prompt — same logic as
-# scripts/daily_news_report.py — so the LLM doesn't keep writing up
-# last week's EIA print as if it were today's news.
-FRESH_INVENTORY_WINDOW_DAYS = 3
 
 HEADLINE_BUCKETS = ("authoritative_news", "sellside_private",
                     "sellside_public", "official_reports")
@@ -208,17 +201,16 @@ def _format_user_prompt(ctx: dict) -> str:
     # Inventory section — always shows latest available reading with
     # an explicit pre-computed status (本期刚发布 / 上一期已过去) so the
     # LLM doesn't have to do threshold math. EIA week-ending date is
-    # Friday; report releases the following Wednesday (5-day lag).
-    # So a week-ending date that's 5-8 days old means "current release",
-    # >8 days means "stale". We compute status in Python and tell Claude
-    # the binary outcome.
+    # Friday; release is the following Wed 10:30 ET = 22:30 BJ, which
+    # lands in the Thursday morning brief. So in BJ terms the EIA print
+    # is "current" only on Wed evening (age 5) and Thursday (age 6).
+    # From Friday onward (age >= 7) treat as "no new release" — news
+    # bodies can still cite the WPSR via the exception A rule.
     inv = ctx.get("inventory") or []
-    # Use MIN days_old across EIA-grade weekly series (skip the slow
-    # monthly JODI which is always old) to pick the freshness status.
     eia_ages = [r.get("days_old") for r in inv
                 if r.get("days_old") is not None and "JODI" not in r.get("label", "")]
     min_age = min(eia_ages) if eia_ages else None
-    is_fresh = (min_age is not None and min_age <= 8)
+    is_fresh = (min_age is not None and min_age <= 6)
     status = "本期刚发布 (current release)" if is_fresh else "上一期已过去 (no new release)"
     L.append(f"【最新 EIA / JODI 库存读数 — 状态: {status}】")
     if not inv:
