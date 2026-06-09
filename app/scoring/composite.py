@@ -45,9 +45,13 @@ def composite_score(
     """Combine narrative + factors using the weights for (symbol, regime).
 
     `factors` is e.g. {"term_structure": 0.45, "momentum": -0.8}.
-    Missing factors get zero contribution; extras are ignored. Weights
-    are renormalized over the factors actually present so the total
-    stays on the same scale even when a factor is unavailable.
+    Missing factors contribute zero — weights are used as configured,
+    NOT renormalized to fill the gap. This keeps the composite signal
+    stationary across history: pre-COT-era rows (when positioning
+    data didn't exist) get a smaller signal magnitude than full-coverage
+    rows, instead of silently rebalancing the remaining factors to
+    full weight (which would make early-era and late-era backtest
+    contributions structurally incomparable).
 
     Returns:
       {
@@ -67,19 +71,15 @@ def composite_score(
     if narrative_score is not None:
         inputs["narrative"] = narrative_score
 
-    available = {k: w for k, w in weights.items() if k in inputs and inputs[k] is not None}
-    total_weight = sum(available.values())
-    if total_weight == 0:
-        return {"total": 0.0, "regime": regime, "breakdown": []}
-
     breakdown = []
     total = 0.0
-    for k, w in available.items():
-        norm_w = w / total_weight
+    for k, w in weights.items():
+        if k not in inputs or inputs[k] is None:
+            continue
         v = float(inputs[k])
-        contrib = norm_w * v
+        contrib = w * v
         total += contrib
-        breakdown.append({"factor": k, "value": v, "weight": norm_w, "contribution": contrib})
+        breakdown.append({"factor": k, "value": v, "weight": w, "contribution": contrib})
 
     breakdown.sort(key=lambda r: abs(r["contribution"]), reverse=True)
     return {"total": total, "regime": regime, "breakdown": breakdown}

@@ -94,10 +94,17 @@ def compute_regimes(
 
     out["trend_up"]       = (is_trend & above_sma & rising_sma).fillna(False)
     out["trend_down"]     = (is_trend & ~above_sma & ~rising_sma).fillna(False)
-    out["range"]          = (adx14 < adx_trend_threshold).fillna(False)
     out["stretched_up"]   = ((rsi14 > rsi_overbought) | (pctb > pctb_overbought)).fillna(False)
     out["stretched_down"] = ((rsi14 < rsi_oversold) | (pctb < pctb_oversold)).fillna(False)
     out["shock"]          = (atr_ratio > shock_atr_ratio).fillna(False)
+    # `range` = "no clear directional trend" — covers BOTH ADX<threshold
+    # (no trend at all) AND ADX≥threshold with mixed direction signals
+    # (close above SMA but slope down, or below SMA but slope up). Prior
+    # definition was strictly ADX<threshold, which left ~335 rows where
+    # primary_regime="range" (via the pick_primary fallback) but the
+    # `range` flag was False — internal inconsistency between
+    # regime_tags and primary_regime.
+    out["range"]          = ~(out["trend_up"] | out["trend_down"])
 
     def collect_tags(row) -> str:
         return ",".join([k for k in PRIMARY_PRIORITY if bool(row.get(k, False))])

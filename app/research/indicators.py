@@ -12,16 +12,25 @@ import pandas as pd
 
 
 def rsi(close: pd.Series, period: int = 14) -> pd.Series:
-    """Wilder's RSI."""
+    """Wilder's RSI, expressed as 100 * U / (U + D).
+
+    Equivalent to the canonical 100 - 100/(1+RS) form but avoids the
+    avg_down==0 divide-by-zero special case: when there have been no
+    down-moves in the lookback (a strong uninterrupted up-move) the
+    formula saturates cleanly at 100 instead of returning NaN. The
+    prior `fillna(50.0)` was masking that saturation as "neutral",
+    causing the regime classifier's `stretched_up` tag (rsi14 > 75)
+    to silently fail to fire on exactly the days it was most needed.
+
+    Returns NaN during warmup (first bar has no prior delta) and on
+    truly-flat segments (U == D == 0); callers should treat NaN as
+    "indeterminate" rather than "neutral 50"."""
     delta = close.diff()
     up = delta.clip(lower=0)
     down = -delta.clip(upper=0)
-    # Wilder smoothing = EMA with alpha = 1/period
     avg_up = up.ewm(alpha=1 / period, adjust=False).mean()
     avg_down = down.ewm(alpha=1 / period, adjust=False).mean()
-    rs = avg_up / avg_down.replace(0, np.nan)
-    out = 100 - (100 / (1 + rs))
-    return out.fillna(50.0)
+    return 100.0 * avg_up / (avg_up + avg_down)
 
 
 def atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> pd.Series:
