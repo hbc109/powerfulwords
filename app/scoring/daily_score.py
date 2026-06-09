@@ -3,9 +3,10 @@ from __future__ import annotations
 import json
 import math
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List
+from zoneinfo import ZoneInfo
 
 
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -15,6 +16,15 @@ OFFICIAL_BUCKETS = ("official_data", "official_reports")
 INSTITUTIONAL_BUCKETS = ("institutional_public", "sellside_private", "authoritative_news")
 CHATTER_BUCKETS = ("social_open", "social_private_manual")
 
+# Score-date cutoff. NY equity close (16:00 ET) is the conservative
+# all-purpose "actionable today" line: an event after this time can't
+# realistically be traded at today's close-of-day mark, so it belongs
+# to the next trading day. NYMEX floor settles earlier (14:30 ET) but
+# 16:00 stays inside the daily WTI session window, so signals taken at
+# 16:00 are still actionable at the daily Globex / Yahoo close.
+NY_TZ = ZoneInfo("America/New_York")
+NY_SCORE_CUTOFF = time(16, 0)
+
 
 def load_scoring_config() -> dict:
     with open(CONFIG_PATH, "r", encoding="utf-8") as f:
@@ -22,12 +32,29 @@ def load_scoring_config() -> dict:
 
 
 def normalize_date(ts: str) -> str:
+    """Map an event timestamp to the trading-day `score_date` it can be
+    acted on. Events before NY 16:00 ET → that NY date. Events at or
+    after 16:00 ET → next trading day. Weekends advance to Monday.
+
+    This decouples score_date from event UTC date — fixes the lookahead
+    where an event between NYMEX close and 24:00 UTC was stamped score_date=D
+    and aligned with close_D in the backtest, even though the signal
+    wasn't actually known until after that day's close."""
     if not ts:
         return ""
     try:
-        return datetime.fromisoformat(str(ts).replace("Z", "+00:00")).date().isoformat()
+        dt = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
     except Exception:
         return str(ts)[:10]
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    ny = dt.astimezone(NY_TZ)
+    d = ny.date()
+    if ny.time() >= NY_SCORE_CUTOFF:
+        d = d + timedelta(days=1)
+    while d.weekday() >= 5:
+        d = d + timedelta(days=1)
+    return d.isoformat()
 
 
 def compute_event_strength(event: dict, cfg: dict) -> float:
