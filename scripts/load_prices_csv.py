@@ -11,7 +11,7 @@ import argparse
 import csv
 from pathlib import Path
 
-from app.db.database import get_connection
+from app.db.database import get_connection, upsert_market_prices
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 
@@ -24,28 +24,21 @@ def main():
     csv_path = (BASE_DIR / args.csv).resolve() if not Path(args.csv).is_absolute() else Path(args.csv)
 
     conn = get_connection()
-    count = 0
+    rows: list[dict] = []
     with open(csv_path, "r", encoding="utf-8-sig", newline="") as f:
         for row in csv.DictReader(f):
-            conn.execute(
-                '''
-                INSERT OR REPLACE INTO market_prices (
-                    price_time, symbol, asset_type, open, high, low, close, volume
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                ''',
-                (
-                    row["price_time"],
-                    row["symbol"],
-                    row.get("asset_type", "commodity"),
-                    float(row["open"]) if row.get("open") else None,
-                    float(row["high"]) if row.get("high") else None,
-                    float(row["low"]) if row.get("low") else None,
-                    float(row["close"]) if row.get("close") else None,
-                    float(row["volume"]) if row.get("volume") else None,
-                ),
-            )
-            count += 1
+            rows.append({
+                "price_time": row["price_time"],
+                "symbol": row["symbol"],
+                "asset_type": row.get("asset_type", "commodity"),
+                "open":   float(row["open"])   if row.get("open")   else None,
+                "high":   float(row["high"])   if row.get("high")   else None,
+                "low":    float(row["low"])    if row.get("low")    else None,
+                "close":  float(row["close"])  if row.get("close")  else None,
+                "volume": float(row["volume"]) if row.get("volume") else None,
+            })
 
+    count = upsert_market_prices(conn, rows)
     conn.commit()
     conn.close()
     print(f"Loaded {count} price rows from {csv_path}")

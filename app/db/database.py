@@ -47,6 +47,15 @@ def init_db() -> None:
             ("volume_ratio", "REAL"),
             ("cross_product_agreement", "REAL"),
         ],
+        # `released_at` is when this row's data became publicly known,
+        # distinct from `price_time` which is the period the data
+        # describes (e.g. EIA week-ending Fri vs Wed publication, COT
+        # "as of Tue" vs Fri publication). All backtest / factor queries
+        # that want "available as of asof" filter on `released_at`.
+        # See app/scoring/release_lags.py for the per-symbol lag policy.
+        "market_prices": [
+            ("released_at", "TIMESTAMP"),
+        ],
     }
     for table, cols in additive_columns.items():
         cur = conn.execute(f"PRAGMA table_info({table})")
@@ -56,6 +65,35 @@ def init_db() -> None:
                 conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {decl}")
     conn.commit()
     conn.close()
+
+def upsert_market_prices(conn: sqlite3.Connection, rows: list[dict]) -> int:
+    """Single write path for market_prices. Auto-computes released_at via
+    the per-symbol lag policy so every backtest can rely on it to mean
+    "when this row became known". Caller still owns `conn.commit()`.
+
+    Each row must have: price_time, symbol, asset_type, open, high, low,
+    close, volume. `released_at` is derived; passing it is ignored."""
+    from app.scoring.release_lags import released_at_for
+    n = 0
+    for r in rows:
+        released_at = released_at_for(r["symbol"], str(r["price_time"]))
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO market_prices (
+                price_time, symbol, asset_type, open, high, low, close, volume,
+                released_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                r["price_time"], r["symbol"], r["asset_type"],
+                r.get("open"), r.get("high"), r.get("low"),
+                r.get("close"), r.get("volume"),
+                released_at,
+            ),
+        )
+        n += 1
+    return n
+
 
 if __name__ == "__main__":
     init_db()

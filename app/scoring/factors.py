@@ -69,9 +69,13 @@ def inventory_factor(
     cutoff = (asof - timedelta(days=lookback_years * 365 + 30)).isoformat()
 
     for series in INVENTORY_SERIES:
+        # released_at (not price_time) gates "what was known at asof".
+        # EIA WPSR's price_time is the Fri week-end; release lands the
+        # following Wed. Without this filter the backtest was peeking
+        # at numbers 5 days before they were public.
         latest = conn.execute(
             "SELECT price_time, close FROM market_prices "
-            "WHERE symbol=? AND price_time <= ? AND close IS NOT NULL "
+            "WHERE symbol=? AND released_at <= ? AND close IS NOT NULL "
             "ORDER BY price_time DESC LIMIT 1",
             (series, asof.isoformat()),
         ).fetchone()
@@ -145,12 +149,18 @@ def positioning_factor(
     end = asof.isoformat()
 
     conn = get_connection()
+    # released_at upper bound gates "known at asof". COT is published Fri
+    # for the previous Tue's as-of date — a 3-day lag. Lower bound stays
+    # on price_time so the lookback window remains a 52w trailing window
+    # of observation periods (sliding by release date would distort the
+    # mean/std distributions).
     cur = conn.execute(
         """
         SELECT price_time, close
         FROM market_prices
         WHERE symbol = ?
-          AND price_time BETWEEN ? AND ?
+          AND price_time >= ?
+          AND released_at <= ?
           AND close IS NOT NULL
         ORDER BY price_time
         """,
@@ -203,13 +213,17 @@ def term_structure_factor(
     end = asof.isoformat()
 
     conn = get_connection()
+    # Front-month settles have lag=0 so released_at == price_time here,
+    # but using released_at on the upper bound makes the lookahead-guard
+    # uniform across factors — same pattern as inventory and positioning.
     cur = conn.execute(
         """
         SELECT m1.price_time, (m1.close - m2.close) AS spread
         FROM market_prices m1
         JOIN market_prices m2 ON m1.price_time = m2.price_time
         WHERE m1.symbol = ? AND m2.symbol = ?
-          AND m1.price_time BETWEEN ? AND ?
+          AND m1.price_time >= ?
+          AND m1.released_at <= ?
           AND m1.close IS NOT NULL AND m2.close IS NOT NULL
         ORDER BY m1.price_time
         """,

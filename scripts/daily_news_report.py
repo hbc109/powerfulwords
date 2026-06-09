@@ -38,9 +38,11 @@ def _fmt_kbbl(n) -> str:
 
 
 def _latest_two(conn, symbol: str, asof: date):
-    """Most recent two prices on or before asof for WoW change."""
+    """Most recent two rows released on or before asof, for WoW change.
+    released_at gates EIA / JODI / COT to their publication date so the
+    nightly report can't quote numbers that weren't yet public."""
     rows = conn.execute(
-        "SELECT price_time, close FROM market_prices WHERE symbol=? AND price_time<=? "
+        "SELECT price_time, close FROM market_prices WHERE symbol=? AND released_at<=? "
         "AND close IS NOT NULL ORDER BY price_time DESC LIMIT 2",
         (symbol, asof.isoformat()),
     ).fetchall()

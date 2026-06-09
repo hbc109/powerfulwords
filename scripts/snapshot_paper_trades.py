@@ -108,8 +108,12 @@ def _narrative_z_for_date(book_cfg: dict, theme_scores: pd.DataFrame, asof: date
 
 
 def _latest_close_on_or_before(symbol: str, asof: date, conn) -> float | None:
+    # released_at, not price_time — same reason as the factor queries.
+    # No effect for lag=0 price symbols (the live use case here), but
+    # if ever called with an EIA/COT/JODI symbol it correctly hides
+    # rows that weren't yet public at asof.
     row = conn.execute(
-        "SELECT close FROM market_prices WHERE symbol=? AND price_time <= ? ORDER BY price_time DESC LIMIT 1",
+        "SELECT close FROM market_prices WHERE symbol=? AND released_at <= ? ORDER BY price_time DESC LIMIT 1",
         (symbol, asof.isoformat()),
     ).fetchone()
     return float(row[0]) if row and row[0] else None

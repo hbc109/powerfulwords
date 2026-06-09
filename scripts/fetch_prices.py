@@ -16,7 +16,7 @@ if str(BASE_DIR) not in sys.path:
 
 import argparse
 
-from app.db.database import get_connection, init_db
+from app.db.database import get_connection, init_db, upsert_market_prices
 from app.fetchers.yfinance_prices import fetch_prices
 from app.fetchers.term_structure import fetch_term_structure
 from app.fetchers.cot_positioning import fetch_cot_positioning
@@ -27,20 +27,7 @@ from app.fetchers.broker_settle import fetch_broker_settle
 
 
 def upsert_prices(conn, rows: list[dict]) -> int:
-    n = 0
-    for r in rows:
-        conn.execute(
-            '''
-            INSERT OR REPLACE INTO market_prices (
-                price_time, symbol, asset_type, open, high, low, close, volume
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ''',
-            (
-                r["price_time"], r["symbol"], r["asset_type"],
-                r["open"], r["high"], r["low"], r["close"], r["volume"],
-            ),
-        )
-        n += 1
+    n = upsert_market_prices(conn, rows)
     conn.commit()
     return n
 
