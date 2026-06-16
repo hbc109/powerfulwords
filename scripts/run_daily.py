@@ -41,6 +41,7 @@ STEPS = [
     ("fetch_sources",      [PYTHON, "scripts/fetch_sources.py"]),
     ("fetch_prices",       [PYTHON, "scripts/fetch_prices.py"]),
     ("ingest_folder",      [PYTHON, "scripts/ingest_folder.py"]),
+    ("rv_ingest",          [PYTHON, "scripts/rv_ingest.py"]),  # broker spread sheets -> rv_quotes (independent)
     ("extract_narratives", [PYTHON, "scripts/extract_narratives.py", "--mode", "auto"]),
     ("score_narratives",   [PYTHON, "scripts/score_narratives.py"]),
     ("run_multi_backtest", [PYTHON, "scripts/run_multi_backtest.py"]),

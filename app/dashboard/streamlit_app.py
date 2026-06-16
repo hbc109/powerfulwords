@@ -354,10 +354,14 @@ c5.metric("Average Event Confidence", avg_conf)
 
 st.info(f"Main Sources: {main_sources}")
 
-tab_recs, tab_upload, tab_library, tab1, tab_trends, tab2, tab3, tab_multi, tab_composite_bt, tab_tech_bt, tab_paper, tab_ai, tab_daily, tab_strategy, tab_method = st.tabs(
-    ["Signal", "Upload", "Library", "Overview", "Trends", "Research",
+tab_recs, tab_upload, tab_library, tab1, tab_trends, tab_rv, tab2, tab3, tab_multi, tab_composite_bt, tab_tech_bt, tab_paper, tab_ai, tab_daily, tab_strategy, tab_method = st.tabs(
+    ["Signal", "Upload", "Library", "Overview", "Trends", "Rel Value", "Research",
      "Baseline Backtest", "Baseline Multi-book", "Composite Backtest", "Technical Backtest", "Paper Trading", "AI Judgment", "Daily Report", "Strategy Notes", "Methodology"]
 )
+
+with tab_rv:
+    from app.rv.dashboard import render as _render_rv
+    _render_rv()
 
 def _book_history_score(book_cfg, theme_scores_df, score_date_str):
     """Re-run aggregation across history to get this book's daily scores
