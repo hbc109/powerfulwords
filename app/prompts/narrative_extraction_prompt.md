@@ -21,6 +21,13 @@ Extraction rules:
    - production_restart
    - other
 4. direction must be one of: bullish, bearish, mixed, neutral.
+   - De-escalation flips the sign: if the event describes a supply/geopolitical
+     risk RESOLVING — ceasefire, truce, peace deal, Strait/port reopening,
+     supply restored, sanctions lifted or eased, troops withdrawing, a conflict
+     ending — the direction is BEARISH for crude (the risk premium unwinds), NOT
+     bullish, even though the topic is "geopolitical_risk" or "supply_disruption".
+     Keep it bullish only if that de-escalation is failing or reversing
+     (ceasefire collapses, truce violated, fighting resumes).
 5. verification_status must be one of: officially_confirmed, partially_confirmed, unverified, refuted.
 6. horizon must be one of: intraday, swing, medium_term.
 7. rumor_flag=true for chatter, hearsay, transmission, or unverified forwarding.

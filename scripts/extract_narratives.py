@@ -14,6 +14,7 @@ from pathlib import Path
 
 from app.db.database import get_connection
 from app.extractors.oil_narrative_extractor import load_rules, extract_events_from_chunk
+from app.extractors.deescalation import resolve_direction
 from app.extractors.llm_narrative_extractor import (
     configured_provider,
     extract_event_from_chunk_llm,
@@ -143,6 +144,7 @@ def main() -> None:
     rule_count = 0
     skipped = 0
     fallback_count = 0
+    deesc_flips = 0
 
     for row in rows:
         document = {
@@ -179,6 +181,14 @@ def main() -> None:
             continue
 
         for evt in events:
+            # De-escalation guard: a risk topic that is RESOLVING (ceasefire,
+            # reopening, supply restored, sanctions lifted) is bearish, not the
+            # topic's bullish default. Applies to both rule and LLM output.
+            new_dir, flipped = resolve_direction(
+                evt.evidence_text or chunk.get('text', ''), evt.topic, evt.direction)
+            if flipped:
+                evt = evt.model_copy(update={'direction': new_dir})
+                deesc_flips += 1
             insert_event(conn, evt)
             (out_dir / f'{evt.event_id}.json').write_text(
                 json.dumps(evt.model_dump(mode='json'), ensure_ascii=False, indent=2),
@@ -194,7 +204,8 @@ def main() -> None:
     conn.close()
     print(
         f'Extracted {count} narrative events. '
-        f'mode={selected_mode}, llm={llm_count}, rule={rule_count}, fallback={fallback_count}, skipped={skipped}'
+        f'mode={selected_mode}, llm={llm_count}, rule={rule_count}, fallback={fallback_count}, '
+        f'skipped={skipped}, deescalation_flips={deesc_flips}'
     )
 
 
