@@ -2141,7 +2141,7 @@ with tab_composite_bt:
 
                 with st.expander(header):
                     cA, cB, cC = st.columns(3)
-                    cA.metric("Entry close", f"{tr.get('entry_close', 0):,.2f}")
+                    cA.metric("Entry close", f"{tr['entry_close']:,.2f}" if tr.get("entry_close") is not None else "—")
                     cB.metric("Exit close", f"{tr.get('exit_close', 0):,.2f}" if tr.get("exit_close") else "open")
                     cC.metric("Holding", f"{holding}d" if holding else "—")
 
@@ -2344,7 +2344,9 @@ script for the same day is a no-op (won't double-record).
                     f"${mtm_px:,.2f} on {mtm_date}:" if mtm_px else "**Open positions:**"
                 )
                 for t, mtm in zip(open_trades, open_mtms):
-                    pos = t.get("target_position", 0.0)
+                    pos = t.get("target_position") or 0.0
+                    entry = t.get("entry_close")
+                    entry_s = f"${entry:,.2f}" if entry is not None else "$—"
                     direction = t.get("direction", "?")
                     color = {"LONG": "🟢", "SHORT": "🔴", "FLAT": "⚪"}.get(direction, "·")
                     mtm_emoji = "✅" if mtm > 0 else ("❌" if mtm < 0 else "·")
@@ -2355,7 +2357,7 @@ script for the same day is a no-op (won't double-record).
                     except Exception:
                         pass
                     head = (f"{color} **{t['plan_date']}** · `{t.get('regime', '?')}` · "
-                            f"{direction} {abs(pos):.0f}x · entry ${t.get('entry_close', 0):,.2f}"
+                            f"{direction} {abs(pos):.0f}x · entry {entry_s}"
                             f" · {mtm_emoji} **{mtm:+.2%} MTM**{age_days}")
                     with st.expander(head):
                         st.write(f"**Reasoning**: {t.get('reasoning', '—')}")
@@ -2366,8 +2368,7 @@ script for the same day is a no-op (won't double-record).
                         if t.get("notes"):
                             st.write(f"📝 Notes: {t['notes']}")
                         cT1, cT2, cT3 = st.columns(3)
-                        cT1.metric(f"Entry close · {t['plan_date']} 14:30 ET",
-                                   f"${t.get('entry_close', 0):,.2f}")
+                        cT1.metric(f"Entry close · {t['plan_date']} 14:30 ET", entry_s)
                         if mtm_px:
                             cT2.metric(f"Latest close · {mtm_date} 14:30 ET",
                                        f"${mtm_px:,.2f}")
@@ -2384,7 +2385,7 @@ script for the same day is a no-op (won't double-record).
                 st.markdown("**Closed trades** — newest first. Header shows `entry → exit · direction · regime · composite · realized PnL · hold`.")
                 show_n = min(20, len(closed))
                 for tr in closed[:show_n]:
-                    pos = tr.get("target_position", 0.0)
+                    pos = tr.get("target_position") or 0.0
                     realized = tr.get("realized_pnl_pct")
                     holding = tr.get("holding_days")
                     color = {"LONG": "🟢", "SHORT": "🔴", "FLAT": "⚪"}.get(tr.get("direction"), "·")
