@@ -121,14 +121,43 @@ def extract_with_mode(document: dict, chunk: dict, mode: str, rules: dict) -> li
     raise ValueError(f'Unsupported mode: {mode}')
 
 
+def ensure_extracted_table(conn) -> None:
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS extracted_chunks ("
+        "  chunk_id TEXT PRIMARY KEY, extracted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
+    conn.commit()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument('--mode', choices=['auto', 'rule', 'llm'], default='auto')
+    parser.add_argument('--incremental', action='store_true',
+                        help='only extract chunks not seen before (skip already-extracted)')
+    parser.add_argument('--full', action='store_true',
+                        help='force full re-extraction of every chunk (overrides --incremental)')
     args = parser.parse_args()
 
     conn = get_connection()
     rules = load_rules()
     rows = fetch_documents_and_chunks(conn)
+
+    # Incremental mode: skip chunks already processed. On first run, seed the
+    # tracker with every existing chunk (they've all been extracted historically),
+    # so only genuinely-new chunks are processed thereafter — this is what makes
+    # the keyless LLM path affordable and stops the hourly re-extract from
+    # clobbering LLM direction adjudications. `--full` forces a complete re-run.
+    incremental = args.incremental and not args.full
+    seen: set = set()
+    if incremental:
+        ensure_extracted_table(conn)
+        seen = {r[0] for r in conn.execute("SELECT chunk_id FROM extracted_chunks")}
+        if not seen:
+            conn.execute("INSERT OR IGNORE INTO extracted_chunks (chunk_id) "
+                         "SELECT chunk_id FROM chunks")
+            conn.commit()
+            seen = {r[0] for r in conn.execute("SELECT chunk_id FROM extracted_chunks")}
+            print(f"[incremental] bootstrapped tracker with {len(seen)} existing "
+                  "chunks; only new chunks will be extracted from now on.")
 
     out_dir = BASE_DIR / 'data' / 'processed' / 'events'
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -147,6 +176,8 @@ def main() -> None:
     deesc_flips = 0
 
     for row in rows:
+        if incremental and row['chunk_id'] in seen:
+            continue
         document = {
             'document_id': row['document_id'],
             'source_id': row['source_id'],
@@ -159,6 +190,11 @@ def main() -> None:
             'chunk_index': row['chunk_index'],
             'text': row['text'],
         }
+        if incremental:
+            # Mark processed up-front (event or not) so boilerplate chunks aren't
+            # re-tried every run.
+            conn.execute("INSERT OR IGNORE INTO extracted_chunks (chunk_id) VALUES (?)",
+                         (row['chunk_id'],))
 
         events = []
         used_mode = selected_mode
