@@ -15,6 +15,7 @@ import streamlit as st
 
 from app.db.database import get_connection
 from app.rv import db as rvdb
+from app.rv import dislocations as dx
 
 _CRUDE_DIFFS = ["WTI-Brent", "Brent-Dubai(EFS)", "WTI-Dubai", "Dated-Dubai", "Brent DFL"]
 _CRUDE_OUTRIGHTS = ["WTI", "Brent", "Dubai", "Dated Brent"]
@@ -55,6 +56,7 @@ def render() -> None:
         "SELECT source, category, spread, tenor, contract, value, unit "
         "FROM rv_quotes WHERE obs_date=?", conn, params=(sel,))
     hist_days = conn.execute("SELECT COUNT(DISTINCT obs_date) FROM rv_quotes").fetchone()[0]
+    board = dx.build_board(conn, obs_date=sel)
     conn.close()
 
     if df.empty:
@@ -64,9 +66,34 @@ def render() -> None:
     srcs = sorted(df["source"].unique())
     st.caption(f"Sources: {', '.join(srcs)}  ·  history: {hist_days} day(s)")
     if hist_days < 10:
-        st.info(f"📈 {hist_days} day(s) of history. Rich/cheap z-scores and trade "
-                "ideas need ~2–3 weeks of daily uploads to be meaningful — keep "
-                "dropping the sheets.")
+        st.info(f"📈 {hist_days} day(s) of history. Rich/cheap z-scores and the full "
+                "trade-idea ranking need ~2–3 weeks of daily uploads — keep dropping "
+                "the sheets. Curve-shape reads below are live now.")
+
+    # --- dislocation board (the trade-idea layer) ---
+    st.subheader("🎯 Dislocation board")
+    st.caption("Crude-diff dislocations as {angle · evidence · idea}. Structure reads "
+               f"are live; rich/cheap & clean-kink ranking sharpen with history ({hist_days}/8+ days).")
+    angles = board.get("angles", {})
+    for title in ("Curve kinks (butterflies)", "Inter-broker gaps", "Rich / cheap"):
+        rows = angles.get(title) or []
+        if not rows:
+            note = (f"forming ({hist_days}/8 days)" if title == "Rich / cheap" else "none today")
+            st.caption(f"• **{title}** — {note}")
+            continue
+        st.markdown(f"**{title}**")
+        st.dataframe(pd.DataFrame([
+            {"spread": r["spread"], "tenor": r["tenor"], "value": r["value"],
+             "evidence": r["evidence"], "idea": r.get("direction", "")} for r in rows[:8]
+        ]), hide_index=True, use_container_width=True)
+    cs = angles.get("Curve shape") or []
+    if cs:
+        st.markdown("**Curve shape — structure / carry read (live)**")
+        st.dataframe(pd.DataFrame([
+            {"spread": r["spread"], "tenor": r["tenor"], "slope": r["value"], "read": r["evidence"]}
+            for r in cs
+        ]), hide_index=True, use_container_width=True)
+    st.divider()
 
     mser = df[df["tenor"].map(lambda t: bool(_M_RE.match(str(t))))].copy()
     mser["m"] = mser["tenor"].str[1:].astype(int)

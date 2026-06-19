@@ -18,6 +18,7 @@ $PY scripts/fetch_sources.py
 $PY scripts/fetch_prices.py --period 1mo
 $PY scripts/compute_regimes.py
 $PY scripts/ingest_folder.py
+$PY scripts/rv_ingest.py
 $PY scripts/extract_narratives.py --incremental
 $PY scripts/score_narratives.py
 $PY scripts/test_strategy_hypotheses.py
