@@ -57,3 +57,6 @@ data/processed/digests/*
 .env
 .env.local
 data/oil.sqlite
+
+# Streamlit Cloud secrets (real secrets live in the Cloud UI; .example is committed)
+.streamlit/secrets.toml

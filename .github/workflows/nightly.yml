@@ -1,0 +1,35 @@
+name: nightly-jobs
+
+# Replaces the local nightly cron jobs that write to the DB (and so persist to
+# the cloud app): the paper-trade snapshot and the Claude AI review.
+# 07:00 Asia/Shanghai = 23:00 UTC (Shanghai is UTC+8).
+#
+# NOT scheduled here: the backtests, weekly event study, and daily news report.
+# Those write JSON/markdown files to local disk, which the ephemeral Actions
+# runner cannot persist to the Streamlit Cloud app — they remain local-only
+# features until their output is moved into the DB / object storage.
+on:
+  schedule:
+    - cron: '0 23 * * *'   # 07:00 Asia/Shanghai
+  workflow_dispatch:
+
+concurrency:
+  group: nightly-jobs
+  cancel-in-progress: false
+
+jobs:
+  nightly:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      EIA_API_KEY: ${{ secrets.EIA_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: python scripts/snapshot_paper_trades.py
+      - run: python scripts/generate_ai_review.py

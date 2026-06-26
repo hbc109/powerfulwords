@@ -1,3 +1,4 @@
+import os
 import sqlite3
 from pathlib import Path
 
@@ -6,6 +7,14 @@ DB_PATH = BASE_DIR / "data" / "oil_narrative.db"
 INIT_SQL_PATH = BASE_DIR / "sql" / "init.sql"
 
 def get_connection() -> sqlite3.Connection:
+    # Cloud (Streamlit Cloud + GitHub Actions) sets DATABASE_URL -> hosted
+    # Postgres via the sqlite-compatible adapter. Local/systemd leaves it unset
+    # -> plain SQLite, exactly as before. init_db() and every PRAGMA below are
+    # translated/no-op'd by the adapter, so this is the only change needed here.
+    url = os.getenv("DATABASE_URL")
+    if url:
+        from . import pg_adapter
+        return pg_adapter.connect(url)
     conn = sqlite3.connect(DB_PATH, timeout=60.0)
     # busy_timeout > Python-level timeout is belt-and-suspenders: the dashboard
     # upload pipeline holds a write lock for minutes while extract_narratives

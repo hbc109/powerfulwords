@@ -10,6 +10,21 @@ import altair as alt
 import pandas as pd
 import streamlit as st
 
+# Streamlit Cloud exposes secrets via st.secrets, not env vars. Mirror them into
+# the environment so app.db.database (also imported by the Actions pipeline
+# scripts, which must not import streamlit) reads DATABASE_URL / ANTHROPIC_API_KEY
+# the same way everywhere. Locally there is no secrets.toml -> SQLite path, no-op.
+try:
+    for _k, _v in st.secrets.items():
+        os.environ.setdefault(_k, str(_v))
+except Exception:
+    pass
+
+# True when running against hosted Postgres (Streamlit Cloud / Actions). Used to
+# disable local-only features (manual upload + background pipeline spawns) that
+# cannot work on the ephemeral cloud container.
+IS_CLOUD = bool(os.getenv("DATABASE_URL"))
+
 BASE_DIR = Path(__file__).resolve().parents[2]
 if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
@@ -17,6 +32,21 @@ if str(BASE_DIR) not in sys.path:
 from app.strategy.recommendations import compute_recommendations as _compute_recs_core
 from app.scoring.factors import term_structure_factor, positioning_factor, inventory_factor
 from app.scoring.composite import composite_score
+from app.db.database import get_connection
+
+
+def _bg_spawn(cmd, shell=False):
+    """Fire-and-forget a local background pipeline. On the cloud app these run on
+    a schedule via GitHub Actions, so inform the user instead of spawning (the
+    ephemeral container has no inbox to ingest and no place to persist output)."""
+    if IS_CLOUD:
+        st.info("On the cloud app this runs automatically on a schedule "
+                "(GitHub Actions). Manual runs are available in local mode.")
+        return False
+    subprocess.Popen(cmd, shell=shell, cwd=str(BASE_DIR),
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                     start_new_session=True)
+    return True
 
 DB_PATH = BASE_DIR / "data" / "oil_narrative.db"
 STRATEGY_CFG_PATH = BASE_DIR / "app" / "config" / "strategy_config.json"
@@ -38,7 +68,7 @@ _THRESHOLDS = _load_thresholds()
 
 
 def load_df(query: str, params: tuple = ()) -> pd.DataFrame:
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_connection()
     df = pd.read_sql_query(query, conn, params=params)
     conn.close()
     return df
@@ -162,7 +192,7 @@ def load_documents_index() -> pd.DataFrame:
 
 def load_document_text(doc_id: str) -> tuple[str, dict]:
     """Fetch raw_text + metadata for one document on demand."""
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_connection()
     try:
         cur = conn.execute(
             "SELECT raw_text, source_id, source_bucket, title, "
@@ -867,6 +897,13 @@ with tab_upload:
     import subprocess
     from datetime import date as _date
 
+    if IS_CLOUD:
+        st.info(
+            "📄 Manual upload saves to local disk, so it only works when running "
+            "the app locally. On the cloud app, web-fetched sources are ingested "
+            "automatically by the scheduled GitHub Actions pipeline."
+        )
+
     st.subheader("Upload an analyst report or any narrative document")
     st.caption(
         "Drop a PDF / DOCX / TXT here, pick its source and date. The file is "
@@ -879,7 +916,7 @@ with tab_upload:
     @st.cache_data(ttl=60)
     def _load_source_choices():
         """Returns [(label_for_dropdown, source_bucket, source_id, source_name)]."""
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_connection()
         rows = conn.execute(
             "SELECT source_bucket, source_id, source_name FROM sources ORDER BY source_bucket, source_id"
         ).fetchall()
@@ -982,15 +1019,11 @@ with tab_upload:
                     f"flock /tmp/oil_pipeline.lock "
                     f"{BASE_DIR}/scripts/upload_pipeline.sh >> {log_path} 2>&1"
                 )
-                subprocess.Popen(
-                    cmd, shell=True, cwd=str(BASE_DIR),
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                    start_new_session=True,
-                )
-                st.success(
-                    "Pipeline kicked off in background — refresh in ~1-2 minutes "
-                    "to see updated scores. Logs at `/tmp/upload_pipeline.log`."
-                )
+                if _bg_spawn(cmd, shell=True):
+                    st.success(
+                        "Pipeline kicked off in background — refresh in ~1-2 minutes "
+                        "to see updated scores. Logs at `/tmp/upload_pipeline.log`."
+                    )
 
         st.markdown("---")
         st.subheader("Or paste an email / text body directly")
@@ -1070,15 +1103,11 @@ with tab_upload:
                     f"flock /tmp/oil_pipeline.lock "
                     f"{BASE_DIR}/scripts/upload_pipeline.sh >> {log_path} 2>&1"
                 )
-                subprocess.Popen(
-                    cmd, shell=True, cwd=str(BASE_DIR),
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                    start_new_session=True,
-                )
-                msgs.append(
-                    "Pipeline kicked off in background — refresh in ~1-2 minutes "
-                    "to see updated scores. Logs at `/tmp/upload_pipeline.log`."
-                )
+                if _bg_spawn(cmd, shell=True):
+                    msgs.append(
+                        "Pipeline kicked off in background — refresh in ~1-2 minutes "
+                        "to see updated scores. Logs at `/tmp/upload_pipeline.log`."
+                    )
 
             st.session_state["_paste_success_msgs"] = msgs
             st.session_state["_clear_paste_next_run"] = True
@@ -1103,15 +1132,11 @@ with tab_upload:
             f"flock /tmp/oil_pipeline.lock "
             f"{BASE_DIR}/scripts/upload_pipeline.sh >> {log_path} 2>&1"
         )
-        subprocess.Popen(
-            cmd, shell=True, cwd=str(BASE_DIR),
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            start_new_session=True,
-        )
-        st.success(
-            "Pipeline kicked off in background — refresh in ~1-2 minutes to see "
-            "updated scores. Tick **Show last 30 lines** above to inspect progress."
-        )
+        if _bg_spawn(cmd, shell=True):
+            st.success(
+                "Pipeline kicked off in background — refresh in ~1-2 minutes to see "
+                "updated scores. Tick **Show last 30 lines** above to inspect progress."
+            )
     if show_log:
         log_path = Path("/tmp/upload_pipeline.log")
         if log_path.exists():
@@ -1308,25 +1333,22 @@ button for the original file when it's still on disk.
                         else:
                             try:
                                 from app.db.repository import repoint_document_date
-                                conn = sqlite3.connect(DB_PATH)
+                                conn = get_connection()
                                 try:
                                     res = repoint_document_date(conn, doc_id, new_date.isoformat())
                                     conn.commit()
                                 finally:
                                     conn.close()
                                 # Trigger background re-score so daily aggregates pick up the new date
-                                subprocess.Popen(
-                                    [sys.executable, "scripts/score_narratives.py"],
-                                    cwd=str(BASE_DIR),
-                                    stdout=subprocess.DEVNULL,
-                                    stderr=subprocess.DEVNULL,
-                                    start_new_session=True,
-                                )
+                                spawned = _bg_spawn([sys.executable, "scripts/score_narratives.py"])
+                                tail = (" Re-scoring in background — refresh in ~30s."
+                                        if spawned else
+                                        " Re-scoring runs on the next scheduled pipeline.")
                                 msg = (
                                     f"✓ Updated. Events repointed: {res['events_updated']}.  "
                                     + (f"File renamed to `{Path(res['file_renamed_to']).name}`."
                                        if res.get("file_renamed_to") else "(file not on disk to rename)")
-                                    + " Re-scoring in background — refresh in ~30s."
+                                    + tail
                                 )
                                 st.success(msg)
                             except Exception as e:
@@ -2291,7 +2313,7 @@ script for the same day is a no-op (won't double-record).
 
     # Helper: latest close per symbol for MTM
     def _latest_close(sym):
-        conn_local = sqlite3.connect(DB_PATH)
+        conn_local = get_connection()
         row = conn_local.execute(
             "SELECT price_time, close FROM market_prices WHERE symbol=? "
             "AND close IS NOT NULL ORDER BY price_time DESC LIMIT 1",
@@ -2637,12 +2659,16 @@ with tab_daily:
     with dc2:
         if st.button("🔄 Rebuild raw report for today", key="rebuild_daily_btn"):
             try:
-                subprocess.run(
-                    [sys.executable, str(BASE_DIR / "scripts" / "daily_news_report.py")],
-                    check=True, cwd=str(BASE_DIR), capture_output=True, timeout=30,
-                )
-                st.success("Rebuilt — refresh to see the latest.")
-                st.rerun()
+                if IS_CLOUD:
+                    st.info("The daily report is rebuilt on a schedule via GitHub "
+                            "Actions on the cloud app.")
+                else:
+                    subprocess.run(
+                        [sys.executable, str(BASE_DIR / "scripts" / "daily_news_report.py")],
+                        check=True, cwd=str(BASE_DIR), capture_output=True, timeout=30,
+                    )
+                    st.success("Rebuilt — refresh to see the latest.")
+                    st.rerun()
             except subprocess.TimeoutExpired:
                 st.error("Build timed out after 30s.")
             except subprocess.CalledProcessError as e:

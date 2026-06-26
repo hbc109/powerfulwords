@@ -1,0 +1,37 @@
+name: hourly-pipeline
+
+# Replaces the local hourly cron (scripts/hourly_pipeline.sh). Fetches sources +
+# prices, computes regimes, ingests + extracts (Claude) + scores narratives, all
+# writing to the hosted Postgres the dashboard reads. Runs in one job so the
+# inbox that fetch_sources writes is visible to ingest_folder on the same runner.
+on:
+  schedule:
+    - cron: '5 * * * *'   # hourly at :05 (UTC; hourly cadence is offset-agnostic)
+  workflow_dispatch:
+
+concurrency:
+  group: hourly-pipeline
+  cancel-in-progress: false
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      EIA_API_KEY: ${{ secrets.EIA_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: python scripts/init_sources.py
+      - run: python scripts/fetch_sources.py
+      - run: python scripts/fetch_prices.py --period 1mo
+      - run: python scripts/compute_regimes.py
+      - run: python scripts/ingest_folder.py
+      - run: python scripts/rv_ingest.py
+      - run: python scripts/extract_narratives.py --incremental
+      - run: python scripts/score_narratives.py
