@@ -300,49 +300,41 @@ DEFAULT_API_MODEL = "claude-sonnet-4-6"
 def generate_daily_report_via_api(
     asof: date,
     *,
-    model: str = DEFAULT_API_MODEL,
+    model: Optional[str] = None,
     max_tokens: int = 2200,
 ) -> dict:
-    """Call the Anthropic SDK to generate the prose daily report directly.
+    """Generate the prose daily report via the configured LLM provider
+    (DeepSeek by default — see app/config/llm_config.json).
 
     Same prompt the paste-flow uses — just routes through the API for
     users who prefer not to copy/paste. Returns:
       {"status": "ok"|"skipped"|"error", "text": str|None,
        "model": str, "reason": str|None}
     """
-    import os as _os
-    if not _os.environ.get("ANTHROPIC_API_KEY"):
-        return {"status": "skipped", "reason": "ANTHROPIC_API_KEY not set",
-                "text": None, "model": model}
+    from app.extractors.llm_providers import (
+        active_provider_model, env_var_for, generate_text, has_credentials,
+    )
+
+    provider, cfg_model = active_provider_model()
+    used_model = model or cfg_model or DEFAULT_API_MODEL
+
+    if not has_credentials(provider):
+        return {"status": "skipped", "reason": f"{env_var_for(provider)} not set",
+                "text": None, "model": used_model}
 
     payload = prepare_daily_report_prompt(asof)
     if not payload.get("ready"):
         return {"status": "skipped", "reason": payload.get("reason"),
-                "text": None, "model": model}
+                "text": None, "model": used_model}
 
     try:
-        import anthropic
-    except ImportError:
-        return {"status": "error", "reason": "anthropic SDK not installed",
-                "text": None, "model": model}
-
-    try:
-        client = anthropic.Anthropic(timeout=90)
-        resp = client.messages.create(
-            model=model,
-            max_tokens=max_tokens,
-            temperature=0.3,
-            system=payload["system"],
-            messages=[{"role": "user", "content": payload["user"]}],
-        )
-        text = "".join(
-            getattr(b, "text", "") for b in resp.content
-            if getattr(b, "type", None) == "text"
-        ).strip()
-        if not text:
-            return {"status": "error", "reason": "empty response",
-                    "text": None, "model": model}
-        return {"status": "ok", "reason": None, "text": text, "model": model}
+        text = generate_text(payload["system"], payload["user"],
+                             max_tokens=max_tokens, temperature=0.3,
+                             provider=provider, model=used_model)
     except Exception as e:
         return {"status": "error", "reason": f"{type(e).__name__}: {e}",
-                "text": None, "model": model}
+                "text": None, "model": used_model}
+    if not text:
+        return {"status": "error", "reason": "empty response",
+                "text": None, "model": used_model}
+    return {"status": "ok", "reason": None, "text": text, "model": used_model}

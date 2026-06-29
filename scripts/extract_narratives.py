@@ -190,12 +190,6 @@ def main() -> None:
             'chunk_index': row['chunk_index'],
             'text': row['text'],
         }
-        if incremental:
-            # Mark processed up-front (event or not) so boilerplate chunks aren't
-            # re-tried every run.
-            conn.execute("INSERT OR IGNORE INTO extracted_chunks (chunk_id) VALUES (?)",
-                         (row['chunk_id'],))
-
         events = []
         used_mode = selected_mode
 
@@ -208,9 +202,19 @@ def main() -> None:
                 fallback_count += 1
                 print(f"[FALLBACK] {chunk['chunk_id']} -> rule extractor ({e})")
             else:
+                # fallback_to_rules is off: DeepSeek is the only ingester. A hard
+                # failure here skips the chunk WITHOUT marking it processed, so the
+                # next run retries it (rather than word-matching or losing it).
                 print(f"[SKIP] {chunk['chunk_id']} failed in mode={selected_mode}: {e}")
                 skipped += 1
                 continue
+
+        if incremental:
+            # Mark processed only AFTER a successful extraction (a non-actionable
+            # result is success too). Boilerplate won't be re-tried; transient LLM
+            # failures will, since they `continue` above before reaching here.
+            conn.execute("INSERT OR IGNORE INTO extracted_chunks (chunk_id) VALUES (?)",
+                         (row['chunk_id'],))
 
         if not events:
             skipped += 1

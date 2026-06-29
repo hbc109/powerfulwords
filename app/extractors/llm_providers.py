@@ -15,6 +15,8 @@ import os
 import re
 import shutil
 import subprocess
+import time
+from pathlib import Path
 from typing import Callable
 
 from app.models.narrative_extraction import NarrativeExtraction
@@ -25,6 +27,8 @@ def env_var_for(provider: str) -> str:
         return "ANTHROPIC_API_KEY"
     if provider == "openai":
         return "OPENAI_API_KEY"
+    if provider == "deepseek":
+        return "DEEPSEEK_API_KEY"
     raise ValueError(f"Unknown provider: {provider}")
 
 
@@ -145,10 +149,152 @@ def _call_openai(messages: list[dict], cfg: dict) -> NarrativeExtraction:
     return parsed
 
 
+def _call_deepseek(messages: list[dict], cfg: dict) -> NarrativeExtraction:
+    """DeepSeek backend — OpenAI-compatible Chat Completions + JSON mode.
+
+    DeepSeek's function-calling is flakier than its JSON mode, so we embed the
+    NarrativeExtraction schema in the system prompt and force a JSON object
+    response, then validate with pydantic (same robust pattern as the CLI path).
+    """
+    from openai import OpenAI
+
+    client = OpenAI(
+        api_key=os.environ.get("DEEPSEEK_API_KEY"),
+        base_url=cfg.get("base_url", "https://api.deepseek.com"),
+        timeout=cfg.get("request_timeout_seconds", 60),
+    )
+    system_text, user_text = _system_and_user(messages)
+    schema = json.dumps(NarrativeExtraction.model_json_schema(), ensure_ascii=False)
+    system_text = (
+        system_text
+        + "\n\nReturn ONLY a single JSON object (no markdown fences, no prose) "
+        "that validates against this JSON schema:\n" + schema
+        + "\n\nAlways include every required field. If should_extract is false, "
+        "still return the object with topic=\"other\", direction=\"neutral\", "
+        "verification_status=\"unverified\", horizon=\"unknown\", and "
+        "credibility/novelty/evidence_text as empty/zero placeholders."
+    )
+    # DeepSeek is the only ingester (no rule/word-match fallback), so retry
+    # transient failures (network blips, 429/5xx, empty/garbled JSON) here
+    # rather than dropping the chunk. Final failure re-raises -> caller skips
+    # WITHOUT marking the chunk processed, so it is retried on the next run.
+    attempts = int(cfg.get("retries", 3))
+    last_err: Exception | None = None
+    for attempt in range(attempts):
+        try:
+            response = client.chat.completions.create(
+                model=cfg.get("model", "deepseek-chat"),
+                max_tokens=int(cfg.get("max_output_tokens", 1024)),
+                temperature=float(cfg.get("temperature", 0.1)),
+                response_format={"type": "json_object"},
+                messages=[
+                    {"role": "system", "content": system_text},
+                    {"role": "user", "content": user_text},
+                ],
+            )
+            content = response.choices[0].message.content or ""
+            data = _extract_json_obj(content)
+            if data is None:
+                raise ValueError("DeepSeek returned no parseable JSON.")
+            break
+        except Exception as e:  # noqa: BLE001 - retry any transient failure
+            last_err = e
+            if attempt < attempts - 1:
+                time.sleep(2 * (attempt + 1))
+    else:
+        raise last_err  # type: ignore[misc]
+    # When DeepSeek judges a chunk non-actionable it often returns a minimal
+    # {"should_extract": false} and omits the 7 required fields. The wrapper
+    # discards non-actionable chunks anyway, so return a valid neutral object
+    # rather than failing validation (which would force a needless rule fallback).
+    if not data.get("should_extract", True):
+        return NarrativeExtraction(
+            should_extract=False, topic="other", direction="neutral",
+            credibility=0.0, novelty=0.0, verification_status="unverified",
+            horizon="unknown", evidence_text="",
+        )
+    return NarrativeExtraction.model_validate(data)
+
+
 PROVIDERS: dict[str, Callable[[list[dict], dict], NarrativeExtraction]] = {
     "anthropic": _call_anthropic,
     "openai": _call_openai,
+    "deepseek": _call_deepseek,
 }
+
+
+def _load_llm_config() -> dict:
+    cfg_path = Path(__file__).resolve().parents[1] / "config" / "llm_config.json"
+    return json.loads(cfg_path.read_text())
+
+
+def active_provider_model() -> tuple[str, str]:
+    """Return (provider, model) per app/config/llm_config.json (deepseek by default)."""
+    cfg = _load_llm_config()
+    provider = cfg.get("provider", "deepseek")
+    pcfg = (cfg.get("providers") or {}).get(provider, {}) or {}
+    return provider, pcfg.get("model", "")
+
+
+def generate_text(
+    system: str,
+    user: str,
+    *,
+    max_tokens: int = 1024,
+    temperature: float = 0.3,
+    provider: str | None = None,
+    model: str | None = None,
+) -> str:
+    """Free-text completion through the configured provider.
+
+    Sibling to the structured extraction path above: same llm_config.json +
+    env-var conventions, but returns the model's raw prose (used by the daily
+    report and the AI-judgment note). Defaults to the top-level `provider` in
+    llm_config.json — currently deepseek.
+    """
+    cfg = _load_llm_config()
+    provider = provider or cfg.get("provider", "deepseek")
+    pcfg = (cfg.get("providers") or {}).get(provider, {}) or {}
+    timeout = pcfg.get("request_timeout_seconds", 90)
+    model = model or pcfg.get("model")
+
+    if provider in ("deepseek", "openai"):
+        from openai import OpenAI
+
+        base_url = pcfg.get("base_url") if provider == "deepseek" else None
+        client = OpenAI(
+            api_key=os.environ.get(env_var_for(provider)),
+            base_url=base_url or ("https://api.deepseek.com" if provider == "deepseek" else None),
+            timeout=timeout,
+        )
+        resp = client.chat.completions.create(
+            model=model or ("deepseek-chat" if provider == "deepseek" else "gpt-4o"),
+            max_tokens=int(max_tokens),
+            temperature=float(temperature),
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+        )
+        return (resp.choices[0].message.content or "").strip()
+
+    if provider == "anthropic":
+        import anthropic
+
+        client = anthropic.Anthropic(timeout=timeout)
+        resp = client.messages.create(
+            model=model or "claude-sonnet-4-6",
+            max_tokens=int(max_tokens),
+            temperature=float(temperature),
+            system=system,
+            messages=[{"role": "user", "content": user}],
+        )
+        return "".join(
+            getattr(b, "text", "") for b in resp.content
+            if getattr(b, "type", None) == "text"
+        ).strip()
+
+    raise ValueError(f"generate_text: unsupported provider {provider}")
 
 
 def call_provider(provider: str, messages: list[dict], provider_cfg: dict) -> NarrativeExtraction:

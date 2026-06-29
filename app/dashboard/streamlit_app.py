@@ -2453,20 +2453,62 @@ script for the same day is a no-op (won't double-record).
 with tab_ai:
     st.subheader("AI Judgment — parallel advisory overlay (does NOT touch trades)")
     st.caption(
-        "Each evening, `scripts/generate_ai_review.py` calls Claude with "
-        "today's composite signal, factor breakdown, regime, recent narrative "
-        "themes, recent document titles, and last 8 closed paper trades. "
-        "Claude writes a short prose review: signal coherence, factor "
-        "disagreements, cross-symbol observations, tail-risk flags. "
+        "Each evening, `scripts/generate_ai_review.py` calls the configured LLM "
+        "(DeepSeek by default) with today's composite signal, factor breakdown, "
+        "regime, recent narrative themes, recent document titles, and last 8 "
+        "closed paper trades, and writes a short prose review: signal coherence, "
+        "factor disagreements, cross-symbol observations, tail-risk flags. "
         "**The trade-decision logic stays 100% rule-based; this layer is "
         "advisory only.** Stored in the `ai_reviews` table."
     )
 
-    from app.scoring.ai_reviewer import load_reviews, prepare_prompt, save_review
+    from app.scoring.ai_reviewer import (
+        load_reviews, prepare_prompt, save_review, generate_review,
+    )
+    from app.extractors.llm_providers import (
+        active_provider_model, env_var_for, has_credentials,
+    )
     ai_reviews = load_reviews(limit=60)
 
-    # --- Manual paste-flow for users on a claude.ai subscription (no API key) ---
-    with st.expander("✍️ Generate review manually via claude.ai (no API key needed)", expanded=True):
+    # --- One-click generate via the configured API provider (DeepSeek) ---
+    _provider, _model = active_provider_model()
+    _api_ready = has_credentials(_provider)
+    with st.expander(f"🤖 Generate review via {_provider} API (one-click)", expanded=True):
+        gc1, gc2 = st.columns([1, 2])
+        with gc1:
+            api_review_date = st.date_input(
+                "Review date", value=date.today(),
+                min_value=date(2024, 1, 1), max_value=date.today(),
+                key="api_review_date",
+            )
+        with gc2:
+            if _api_ready:
+                st.caption(
+                    f"Calls **{_provider}** (`{_model}`) with today's signal context and "
+                    f"writes the review straight to the table — no copy-paste. Re-run any "
+                    f"time (after a cron tick or new uploads) to refresh that date's review; "
+                    f"it overwrites the existing one for the date."
+                )
+            else:
+                st.caption(
+                    f"**{env_var_for(_provider)} not set on the dashboard process.** Add it to "
+                    f"`~/.config/powerfulwords.env` and restart `powerfulwords.service`."
+                )
+        if st.button(f"🤖 Generate now via {_provider}", key="api_review_btn",
+                     type="primary", disabled=not _api_ready, use_container_width=True):
+            with st.spinner(f"Calling {_model}..."):
+                res = generate_review(api_review_date)
+            if res["status"] == "ok":
+                rid = save_review(api_review_date, res["model"], res["context"], res["review_text"])
+                st.success(f"Saved review_id={rid} for {api_review_date} via {res['model']}.")
+                st.rerun()
+            elif res["status"] == "skipped":
+                st.warning(f"Skipped: {res['reason']}")
+            else:
+                st.error(f"Error: {res['reason']}")
+
+    # --- Manual paste-flow fallback (claude.ai subscription, no API key) ---
+    with st.expander("✍️ Generate review manually via claude.ai (fallback — no key needed)", expanded=False):
         ml1, ml2 = st.columns([3, 1])
         with ml1:
             st.caption(
@@ -2569,12 +2611,12 @@ with tab_ai:
                 st.session_state["paste_review_response_input"] = ""
                 st.rerun()
 
-    if not os.environ.get("ANTHROPIC_API_KEY") and not ai_reviews:
+    if not _api_ready and not ai_reviews:
         st.info(
-            "**ANTHROPIC_API_KEY not set on the dashboard process.** Set it "
-            "in `~/.bashrc` and add it to the cron environment "
-            "(see `ops/crontab`), then run `python scripts/generate_ai_review.py` "
-            "to produce the first review. Get a key at https://console.anthropic.com/."
+            f"**{env_var_for(_provider)} not set on the dashboard process.** Add it to "
+            "`~/.config/powerfulwords.env` (loaded by the systemd service and the "
+            "07:15 cron), then click **Generate now** above or run "
+            "`python scripts/generate_ai_review.py`."
         )
     elif not ai_reviews:
         st.info("No AI reviews yet. Run `python scripts/generate_ai_review.py` "
@@ -2628,6 +2670,12 @@ with tab_daily:
         prepare_daily_report_prompt, save_llm_report, load_llm_report, llm_report_path,
         generate_daily_report_via_api, DEFAULT_API_MODEL,
     )
+    from app.extractors.llm_providers import (
+        active_provider_model as _dr_provider_model,
+        env_var_for as _dr_env_var, has_credentials as _dr_has_creds,
+    )
+    _dr_provider, _dr_model = _dr_provider_model()
+    _dr_model = _dr_model or DEFAULT_API_MODEL
 
     digest_dir = BASE_DIR / "data" / "processed" / "digests"
 
@@ -2705,14 +2753,14 @@ with tab_daily:
                 st.session_state["_dr_prompt_payload"] = prepare_daily_report_prompt(rp_date)
                 st.session_state.pop("_dr_api_preview", None)
         with bcol2:
-            api_disabled = not bool(os.environ.get("ANTHROPIC_API_KEY"))
-            api_help = ("Calls the Anthropic API with the same prompt — same output, no copy-paste. "
-                        + ("Requires ANTHROPIC_API_KEY env var." if api_disabled
-                           else f"Model: {DEFAULT_API_MODEL}. ~2s, costs a few cents per run."))
-            if st.button("🤖 Generate via Anthropic API", key="api_dr_btn",
+            api_disabled = not _dr_has_creds(_dr_provider)
+            api_help = (f"Calls the {_dr_provider} API with the same prompt — same output, no copy-paste. "
+                        + (f"Requires {_dr_env_var(_dr_provider)} env var." if api_disabled
+                           else f"Model: {_dr_model}. Re-run any time after new uploads/crons."))
+            if st.button(f"🤖 Generate via {_dr_provider} API", key="api_dr_btn",
                          disabled=api_disabled, help=api_help,
                          use_container_width=True):
-                with st.spinner(f"Calling {DEFAULT_API_MODEL}..."):
+                with st.spinner(f"Calling {_dr_model}..."):
                     result = generate_daily_report_via_api(rp_date)
                 st.session_state["_dr_api_preview"] = result
                 st.session_state.pop("_dr_prompt_payload", None)

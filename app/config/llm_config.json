@@ -1,6 +1,13 @@
 {
-  "provider": "anthropic",
+  "provider": "deepseek",
   "providers": {
+    "deepseek": {
+      "model": "deepseek-chat",
+      "base_url": "https://api.deepseek.com",
+      "max_output_tokens": 1024,
+      "temperature": 0.1,
+      "request_timeout_seconds": 60
+    },
     "anthropic": {
       "model": "claude-sonnet-4-6",
       "max_output_tokens": 1024,
@@ -14,6 +21,6 @@
       "request_timeout_seconds": 60
     }
   },
-  "mode_default": "auto",
-  "fallback_to_rules": true
+  "mode_default": "llm",
+  "fallback_to_rules": false
 }

@@ -11,6 +11,15 @@ set -e  # exit on first failure, same as `&&` chain semantics
 
 cd /home/hongbingchen/powerfulwords
 
+# Load the LLM key (DeepSeek) for extract_narratives. `set -a` exports every
+# assignment in the sourced file so it reaches the python child processes.
+# Guarded so a missing file doesn't abort the pipeline under `set -e`.
+if [ -r "$HOME/.config/powerfulwords.env" ]; then
+  set -a
+  . "$HOME/.config/powerfulwords.env"
+  set +a
+fi
+
 PY=/usr/bin/python3
 
 $PY scripts/init_sources.py

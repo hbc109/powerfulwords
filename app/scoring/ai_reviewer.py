@@ -10,8 +10,8 @@ The review is stored in a new `ai_reviews` table and surfaced in its
 own dashboard tab. Trades and the composite signal are unaffected —
 this is a parallel, advisory layer for human judgment.
 
-Anthropic Claude SDK only (per user preference). No-op if
-ANTHROPIC_API_KEY isn't set.
+Routes through the configured LLM provider (DeepSeek by default; see
+app/config/llm_config.json). No-op if that provider's API key isn't set.
 """
 
 from __future__ import annotations
@@ -375,14 +375,21 @@ def _format_context_for_llm(ctx: dict) -> str:
     return "\n".join(lines)
 
 
-def generate_review(review_date: date, *, model: str = DEFAULT_MODEL) -> dict:
-    """Call Claude to generate a review for `review_date`. Returns a dict:
+def generate_review(review_date: date, *, model: Optional[str] = None) -> dict:
+    """Generate a review for `review_date` via the configured LLM provider
+    (DeepSeek by default — see app/config/llm_config.json). Returns a dict:
       {"status": "ok"|"skipped"|"error", "review_text": str|None, "model": str, "context": dict, "reason": str|None}
     """
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        return {"status": "skipped", "reason": "ANTHROPIC_API_KEY not set",
-                "review_text": None, "model": model, "context": {}}
+    from app.extractors.llm_providers import (
+        active_provider_model, env_var_for, generate_text, has_credentials,
+    )
+
+    provider, cfg_model = active_provider_model()
+    used_model = model or cfg_model or DEFAULT_MODEL
+
+    if not has_credentials(provider):
+        return {"status": "skipped", "reason": f"{env_var_for(provider)} not set",
+                "review_text": None, "model": used_model, "context": {}}
 
     conn = get_connection()
     ensure_table(conn)
@@ -392,33 +399,20 @@ def generate_review(review_date: date, *, model: str = DEFAULT_MODEL) -> dict:
     if not any(s.get("composite") is not None for s in ctx.get("signals_live", [])):
         return {"status": "skipped",
                 "reason": "no live composite (missing regime / narrative for this date)",
-                "review_text": None, "model": model, "context": ctx}
-
-    try:
-        import anthropic
-    except ImportError:
-        return {"status": "error", "reason": "anthropic SDK not installed (`pip install anthropic`)",
-                "review_text": None, "model": model, "context": ctx}
+                "review_text": None, "model": used_model, "context": ctx}
 
     user_prompt = _format_context_for_llm(ctx)
     try:
-        client = anthropic.Anthropic(timeout=45)
-        resp = client.messages.create(
-            model=model,
-            max_tokens=600,
-            temperature=0.3,
-            system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": user_prompt}],
-        )
-        text = "".join(getattr(b, "text", "") for b in resp.content if getattr(b, "type", None) == "text").strip()
-        if not text:
-            return {"status": "error", "reason": "empty Claude response",
-                    "review_text": None, "model": model, "context": ctx}
-        return {"status": "ok", "reason": None, "review_text": text,
-                "model": model, "context": ctx}
+        text = generate_text(SYSTEM_PROMPT, user_prompt, max_tokens=600,
+                             temperature=0.3, provider=provider, model=used_model)
     except Exception as e:
         return {"status": "error", "reason": f"{type(e).__name__}: {e}",
-                "review_text": None, "model": model, "context": ctx}
+                "review_text": None, "model": used_model, "context": ctx}
+    if not text:
+        return {"status": "error", "reason": "empty LLM response",
+                "review_text": None, "model": used_model, "context": ctx}
+    return {"status": "ok", "reason": None, "review_text": text,
+            "model": used_model, "context": ctx}
 
 
 def prepare_prompt(review_date: date, mode: str = "standard") -> dict:
