@@ -215,6 +215,49 @@ def render() -> None:
         st.caption("EFS indexes the Dubai of the Brent *contract* month (cal +2), so the "
                    "EFS-vs-swap-swap gap rides the Dubai curve shape.")
 
+    # --- Drivers: arb-economics gate (v1, manual freight/quality) ---
+    st.subheader("Drivers — arb-economics gate (West→East)")
+    st.caption(
+        "The EW is the gate for moving Atlantic (Brent-linked) crude East. Arb is "
+        "**open** when delivering to Asia beats the local Dubai-linked barrel: "
+        "`Brent + freight ≤ Dubai + quality`  ⟺  `EW ≤ gate`, where "
+        "**gate = quality − freight**. Freight/quality are your inputs for now — a "
+        "VLCC freight fetcher is the next data task."
+    )
+    g1, g2, g3 = st.columns(3)
+    with g1:
+        freight = st.number_input("W→E freight ($/bbl)", min_value=0.0, value=3.50,
+                                  step=0.25, key="ew_freight",
+                                  help="Net VLCC cost to land a Brent-linked barrel in Asia.")
+    with g2:
+        quality = st.number_input("Asian sweet quality premium ($/bbl)", value=1.00,
+                                  step=0.25, key="ew_quality",
+                                  help="Value uplift of the lighter/sweeter Atlantic grade vs the "
+                                       "Dubai-linked alternative in Asia.")
+    with g3:
+        basis = st.selectbox("EW basis", ["Dated-Dubai", "EFS", "Swap-swap"], index=0,
+                             key="ew_gate_basis",
+                             help="Physical flows arb off Dated-Dubai; EFS/swap-swap are the financial EWs.")
+    gate = quality - freight
+    fld = {"Dated-Dubai": "dated_dubai", "EFS": "efs", "Swap-swap": "swapswap"}[basis]
+    ew_now = float(p.get(fld)) if pd.notna(p.get(fld)) else None
+    m1, m2, m3 = st.columns(3)
+    m1.metric("Arb gate (fair-value EW)", f"{gate:+.2f}")
+    m2.metric(f"Live EW — {basis} ({p['label']})",
+              f"{ew_now:+.2f}" if ew_now is not None else "—")
+    if ew_now is not None:
+        resid = ew_now - gate
+        m3.metric("Residual (EW − gate)", f"{resid:+.2f}")
+        if resid > 0.25:
+            st.warning(f"EW **${resid:.2f} above** the gate → W→E arb **shut**, Atlantic stays "
+                       "West. EW rich vs flow economics → mean-reversion pressure **down**, "
+                       "unless the Atlantic is structurally tight (check DFL above).")
+        elif resid < -0.25:
+            st.success(f"EW **${abs(resid):.2f} below** the gate → arb **open**, barrels move "
+                       "East → firms Dubai / lifts the West price → pressure **up** on EW.")
+        else:
+            st.info(f"EW within ${abs(resid):.2f} of the gate → roughly balanced (marginal arb).")
+
     # --- Reconciliation + raw ---
     with st.expander("Reconciliation & raw curve"):
         chk = live.assign(
