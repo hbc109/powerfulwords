@@ -26,6 +26,7 @@ import calendar
 import re
 from datetime import date
 
+import altair as alt
 import pandas as pd
 import streamlit as st
 
@@ -70,6 +71,29 @@ def _brent_expiry(ym: tuple[int, int]) -> date:
 
 def _label(ym: tuple[int, int]) -> str:
     return f"{calendar.month_abbr[ym[1]]}-{ym[0] % 100:02d}"
+
+
+def _curve_chart(df: pd.DataFrame, mapping: dict[str, str], y_title: str, height: int = 240):
+    """Line chart over the contract-month axis, ordered by curve position (NOT
+    alphabetically — st.line_chart sorts string x-labels alphabetically, which
+    scrambles month labels). `mapping` is {df column: legend name}."""
+    order = df["label"].tolist()  # already chronological (df sorted by year, month)
+    long = (df.melt(id_vars="label", value_vars=list(mapping),
+                    var_name="series", value_name="val")
+              .dropna(subset=["val"]))
+    long["series"] = long["series"].map(mapping)
+    return (
+        alt.Chart(long)
+        .mark_line(point=True)
+        .encode(
+            x=alt.X("label:N", sort=order, title="Brent contract month →"),
+            y=alt.Y("val:Q", title=y_title),
+            color=alt.Color("series:N", title=None,
+                            sort=list(mapping.values())),
+            tooltip=["label", "series", alt.Tooltip("val:Q", format="+.2f")],
+        )
+        .properties(height=height)
+    )
 
 
 def load_ew(conn, obs_date: str) -> pd.DataFrame | None:
@@ -193,25 +217,32 @@ def render() -> None:
 
     # --- Three EW curves overlaid (live strip) ---
     st.subheader("East-West curves")
-    curve = live.set_index("label")[["efs", "swapswap", "dated_dubai"]].rename(
-        columns={"efs": "EFS", "swapswap": "Swap-swap", "dated_dubai": "Dated-Dubai"})
-    st.line_chart(curve.dropna(how="all"), height=260)
-    st.caption("All three are East-West (Brent rich vs Dubai). Backwardated = prompt "
-               "premium eases out the curve. Gaps between the lines are the Brent-side basis →")
+    st.caption(
+        f"**Forward curve on the {sel} snapshot — *not* a time series.** X-axis = Brent "
+        f"**contract month** (left = prompt {live.iloc[0]['label']} → right = deferred). "
+        "Each line is the shape of the EW across forward months on this one day."
+    )
+    st.altair_chart(
+        _curve_chart(live, {"efs": "EFS", "swapswap": "Swap-swap",
+                            "dated_dubai": "Dated-Dubai"}, "$/bbl", height=260),
+        use_container_width=True)
+    st.caption("All three are East-West (Brent rich vs Dubai). Downward-sloping = "
+               "backwardated (prompt premium eases out the curve). Gaps between the lines "
+               "are the Brent-side basis, broken out below.")
 
     # --- Decomposition: the two legs that separate the three curves ---
     st.subheader("Basis decomposition")
     d1, d2 = st.columns(2)
     with d1:
         st.markdown("**DFL — Dated vs front Brent** _(separates Dated-Dubai from swap-swap)_")
-        st.line_chart(live.set_index("label")[["dfl"]].rename(columns={"dfl": "DFL"}),
-                      height=200)
+        st.altair_chart(_curve_chart(live, {"dfl": "DFL"}, "$/bbl", height=200),
+                        use_container_width=True)
         st.caption("North Sea physical. DFL ↑ → Dated-Dubai richer than the swap-swap. "
                    "Check: Dated-Dubai − swap-swap ≈ DFL.")
     with d2:
         st.markdown("**Dubai time-spread (M−M+1)** _(behind EFS vs swap-swap)_")
-        st.line_chart(live.set_index("label")[["dubai_ts"]].rename(
-            columns={"dubai_ts": "Dubai M−M+1"}), height=200)
+        st.altair_chart(_curve_chart(live, {"dubai_ts": "Dubai M−M+1"}, "$/bbl", height=200),
+                        use_container_width=True)
         st.caption("EFS indexes the Dubai of the Brent *contract* month (cal +2), so the "
                    "EFS-vs-swap-swap gap rides the Dubai curve shape.")
 
