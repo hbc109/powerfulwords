@@ -1016,11 +1016,14 @@ with tab_upload:
                 # the dashboard. Logs append to /tmp/upload_pipeline.log so we
                 # can surface a tail if the user wants to debug.
                 log_path = Path("/tmp/upload_pipeline.log")
-                # Blocking flock on the same lock the hourly cron uses, so
-                # the upload pipeline serializes with cron writes instead of
-                # racing on the SQLite write lock. See scripts/upload_pipeline.sh.
+                # Non-blocking flock (-n) on the same lock the hourly cron uses:
+                # serializes with cron writes to avoid racing the SQLite write
+                # lock, but if a run is already holding the lock this SKIPS rather
+                # than queueing — otherwise many uploads pile up blocking runs that
+                # starve the hourly pipeline. The inbox is re-scanned by whatever
+                # run is active (or the next hourly tick), so files aren't lost.
                 cmd = (
-                    f"flock /tmp/oil_pipeline.lock "
+                    f"flock -n /tmp/oil_pipeline.lock "
                     f"{BASE_DIR}/scripts/upload_pipeline.sh >> {log_path} 2>&1"
                 )
                 if _bg_spawn(cmd, shell=True):
@@ -1100,11 +1103,14 @@ with tab_upload:
 
             if run_pipeline:
                 log_path = Path("/tmp/upload_pipeline.log")
-                # Blocking flock on the same lock the hourly cron uses, so
-                # the upload pipeline serializes with cron writes instead of
-                # racing on the SQLite write lock. See scripts/upload_pipeline.sh.
+                # Non-blocking flock (-n) on the same lock the hourly cron uses:
+                # serializes with cron writes to avoid racing the SQLite write
+                # lock, but if a run is already holding the lock this SKIPS rather
+                # than queueing — otherwise many uploads pile up blocking runs that
+                # starve the hourly pipeline. The inbox is re-scanned by whatever
+                # run is active (or the next hourly tick), so files aren't lost.
                 cmd = (
-                    f"flock /tmp/oil_pipeline.lock "
+                    f"flock -n /tmp/oil_pipeline.lock "
                     f"{BASE_DIR}/scripts/upload_pipeline.sh >> {log_path} 2>&1"
                 )
                 if _bg_spawn(cmd, shell=True):
